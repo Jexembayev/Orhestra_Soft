@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="orhestra.ui.TaskMonitoringController"
+      spacing="10.0" styleClass="pad">
+    <HBox spacing="10.0">
+        <Button text="Обновить" onAction="#refreshTasks"/>
+        <Label text="Очередь / Статусы задач" styleClass="muted"/>
+    </HBox>
+
+    <TableView fx:id="taskTable" prefHeight="560">
+        <columns>
+            <TableColumn fx:id="idColumn"      text="ID"        prefWidth="120"/>
+            <TableColumn fx:id="algColumn"     text="Alg"       prefWidth="80"/>
+            <TableColumn fx:id="funcColumn"    text="Func"      prefWidth="120"/>
+            <TableColumn fx:id="iterColumn"    text="Iter"      prefWidth="80"/>
+            <TableColumn fx:id="runtimeColumn" text="Runtime"   prefWidth="120"/>
+            <TableColumn fx:id="statusColumn"  text="Status"    prefWidth="120"/>
+            <TableColumn fx:id="progressColumn" text="Progress" prefWidth="120"/>
+        </columns>
+    </TableView>
+</VBox>

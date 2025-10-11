@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.control.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="orhestra.ui.SpotMonitoringController"
+      spacing="10.0" styleClass="pad">
+    <HBox spacing="10.0">
+        <Button text="Обновить" onAction="#refreshSpots"/>
+        <Label fx:id="coordinatorStatusLabel" text="⏳ Координатор запускается..." styleClass="muted"/>
+    </HBox>
+
+    <TableView fx:id="spotTable" prefHeight="560">
+        <columns>
+            <TableColumn fx:id="idColumn"       text="ID"                  prefWidth="120"/>
+            <TableColumn fx:id="ipColumn"       text="IP"                  prefWidth="140"/>
+            <TableColumn fx:id="cpuColumn"      text="CPU (%)"             prefWidth="90"/>
+            <TableColumn fx:id="activeColumn"   text="Активные задачи"     prefWidth="140"/>
+            <TableColumn fx:id="coresColumn"    text="Ядер"                prefWidth="90"/>
+            <TableColumn fx:id="lastSeenColumn" text="Последний сигнал"    prefWidth="180"/>
+            <TableColumn fx:id="statusColumn"   text="Статус"              prefWidth="120"/>
+        </columns>
+    </TableView>
+</VBox>

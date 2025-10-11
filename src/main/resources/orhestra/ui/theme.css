@@ -1,0 +1,8 @@
+/* src/main/resources/orhestra/ui/theme.css */
+.root { -fx-font-family: "Inter", "Segoe UI", Arial; -fx-base: #f6f7fb; }
+.title { -fx-font-size: 16px; -fx-font-weight: bold; }
+.muted { -fx-text-fill: #666; }
+.pad { -fx-padding: 12; }
+.table-view { -fx-background-color: white; }
+.titled-pane > .title { -fx-background-color: #eef1fb; }
+.button { -fx-background-radius: 8; }

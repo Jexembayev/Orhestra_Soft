@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="orhestra.ui.VmCreatorController"
+      spacing="10.0">
+
+    <!-- Внешние отступы всей вкладки -->
+    <padding>
+        <Insets topRightBottomLeft="12.0"/>
+    </padding>
+
+    <HBox spacing="10.0">
+        <Button text="Загрузить .ini файл конфигурации" onAction="#handleLoadIniFile"/>
+        <Button fx:id="createVmButton" text="Создать ВМ" onAction="#handleCreateVm" disable="true"/>
+        <Button fx:id="deleteAllButton" text="Удалить все ВМ" onAction="#handleDeleteAllVms"/>
+    </HBox>
+
+    <TextArea fx:id="logArea" prefRowCount="10" editable="false" wrapText="true"/>
+
+    <TitledPane text="Предпросмотр конфигурации" expanded="true">
+        <content>
+            <VBox spacing="6.0">
+                <padding>
+                    <Insets topRightBottomLeft="10.0"/>
+                </padding>
+
+                <Label fx:id="vmCountLabel"/>
+                <Label fx:id="vmNameLabel"/>
+                <Label fx:id="imageIdLabel"/>
+                <Label fx:id="cpuLabel"/>
+                <Label fx:id="ramLabel"/>
+                <Label fx:id="diskLabel"/>
+                <Label fx:id="userLabel"/>
+                <Label fx:id="keyPathLabel"/>
+            </VBox>
+        </content>
+    </TitledPane>
+</VBox>
+
