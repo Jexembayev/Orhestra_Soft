@@ -3,7 +3,7 @@
 <?import javafx.scene.layout.*?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml"
-            fx:controller="orhestra.ui.MainController">
+            fx:controller="orhestra.coordinator.ui.MainController">
     <top>
         <ToolBar prefHeight="44">
             <Label text="Orhestra • Control Panel" styleClass="title"/>
@@ -20,6 +20,12 @@
     <center>
         <TabPane fx:id="tabPane">
             <tabs>
+                <Tab text="Cloud" closable="false">
+                    <content>
+                        <fx:include source="/orhestra/ui/cloud.fxml"/>
+                    </content>
+                </Tab>
+
                 <Tab text="VM Creator" closable="false">
                     <content>
                         <fx:include source="/orhestra/ui/vm_creator.fxml"/>

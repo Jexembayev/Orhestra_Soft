@@ -2,23 +2,24 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.scene.control.*?>
 
-<VBox xmlns:fx="http://javafx.com/fxml"
-      fx:controller="orhestra.ui.SpotMonitoringController"
-      spacing="10.0" styleClass="pad">
-    <HBox spacing="10.0">
-        <Button text="Обновить" onAction="#refreshSpots"/>
-        <Label fx:id="coordinatorStatusLabel" text="⏳ Координатор запускается..." styleClass="muted"/>
+<VBox spacing="8" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="orhestra.coordinator.ui.SpotMonitoringController">
+    <HBox spacing="8">
+        <Label text="Spots:"/>
+        <Label fx:id="lblTotal" text="0"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <Button text="Refresh" onAction="#handleRefresh"/>
     </HBox>
 
-    <TableView fx:id="spotTable" prefHeight="560">
+    <TableView fx:id="table" prefHeight="520" VBox.vgrow="ALWAYS">
         <columns>
-            <TableColumn fx:id="idColumn"       text="ID"                  prefWidth="120"/>
-            <TableColumn fx:id="ipColumn"       text="IP"                  prefWidth="140"/>
-            <TableColumn fx:id="cpuColumn"      text="CPU (%)"             prefWidth="90"/>
-            <TableColumn fx:id="activeColumn"   text="Активные задачи"     prefWidth="140"/>
-            <TableColumn fx:id="coresColumn"    text="Ядер"                prefWidth="90"/>
-            <TableColumn fx:id="lastSeenColumn" text="Последний сигнал"    prefWidth="180"/>
-            <TableColumn fx:id="statusColumn"   text="Статус"              prefWidth="120"/>
+            <TableColumn fx:id="colId"       text="ID"        prefWidth="80"/>
+            <TableColumn fx:id="colAddr"     text="Address"   prefWidth="220"/>
+            <TableColumn fx:id="colCPU"      text="CPU %"     prefWidth="100"/>
+            <TableColumn fx:id="colTasks"    text="Tasks"     prefWidth="90"/>
+            <TableColumn fx:id="colBeat"     text="LastBeat(s)" prefWidth="120"/>
+            <TableColumn fx:id="colStatus"   text="Status"    prefWidth="120"/>
         </columns>
     </TableView>
 </VBox>
+

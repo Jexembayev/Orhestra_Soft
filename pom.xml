@@ -13,11 +13,28 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+
         <javafx.version>21.0.3</javafx.version>
-        <jackson.version>2.17.1</jackson.version>
         <yc.version>2.7.0</yc.version>
+        <jackson.version>2.17.1</jackson.version>
         <junit.version>5.10.2</junit.version>
+
+        <!-- ★ Netty -->
+        <netty.version>4.1.109.Final</netty.version>
     </properties>
+
+    <!-- ★ Подтягиваем согласованные версии всех netty-* модулей -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- JavaFX -->
@@ -32,30 +49,26 @@
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- JSON -->
+        <!-- Config / JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
-
-        <!-- (опционально) INI: если используешь библиотеку -->
-        <!--
         <dependency>
-          <groupId>org.ini4j</groupId>
-          <artifactId>ini4j</artifactId>
-          <version>0.5.4</version>
+            <groupId>org.ini4j</groupId>
+            <artifactId>ini4j</artifactId>
+            <version>0.5.4</version>
         </dependency>
-        -->
 
-        <!-- SSH: выбери ОДНУ. Оставим sshj -->
+        <!-- SSH -->
         <dependency>
             <groupId>com.hierynomus</groupId>
             <artifactId>sshj</artifactId>
             <version>0.38.0</version>
         </dependency>
 
-        <!-- Логирование (простой биндер) -->
+        <!-- Логирование -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -73,8 +86,43 @@
             <artifactId>java-sdk-auth</artifactId>
             <version>${yc.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.yandex.cloud</groupId>
+            <artifactId>java-genproto</artifactId>
+            <version>${yc.version}</version>
+        </dependency>
 
-        <!-- Тесты -->
+        <!-- H2 (для координатора) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.2.224</version>
+        </dependency>
+
+        <!-- ★ Netty (базовый набор для сервера) -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-handler</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-codec-http</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-resolver</artifactId>
+        </dependency>
+        <!-- (опционально, если планируются DNS/HTTP/2/WebSocket — добавим позже по мере надобности) -->
+
+        <!-- JUnit 5 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -95,7 +143,7 @@
                 </configuration>
             </plugin>
 
-            <!-- JavaFX Launcher -->
+            <!-- Запуск JavaFX -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
@@ -105,7 +153,7 @@
                 </configuration>
             </plugin>
 
-            <!-- JUnit 5 -->
+            <!-- Тесты -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

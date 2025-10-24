@@ -1,10 +1,10 @@
 // src/main/java/orhestra/ui/TaskMonitoringController.java
-package orhestra.ui;
+package orhestra.coordinator.ui;
 
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import orhestra.ui.model.TaskRow;
+import orhestra.coordinator.model.TaskRow;
 
 public class TaskMonitoringController {
     @FXML private TableView<TaskRow> taskTable;

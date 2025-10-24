@@ -1,4 +1,4 @@
-package orhestra.ui;
+package orhestra.coordinator.ui;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.TabPane;

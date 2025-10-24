@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml"
+            fx:controller="orhestra.coordinator.ui.CloudController">
+
+    <left>
+        <VBox spacing="10">
+            <padding><Insets topRightBottomLeft="12"/></padding>
+
+            <!-- INI -->
+            <Label text="Конфигурация (INI)" style="-fx-font-weight: bold;"/>
+            <HBox spacing="6">
+                <TextField fx:id="iniPathField" promptText="C:\path\to\config.ini" HBox.hgrow="ALWAYS"/>
+                <Button text="..." onAction="#handleChooseIni"/>
+            </HBox>
+            <Button text="Загрузить INI" onAction="#handleLoadIni"/>
+
+            <Separator/>
+
+            <!-- ПРОВЕРКИ/СОСТОЯНИЕ (без VPN) -->
+            <Label text="Проверки окружения" style="-fx-font-weight: bold;"/>
+
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="Облако:"/>
+                <Label fx:id="dotCloud" text="●" style="-fx-text-fill: #999999; -fx-font-size: 16;"/>
+                <Button fx:id="btnCheckCloud" text="Проверить облако" onAction="#handleCheckCloud"/>
+            </HBox>
+
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="OpenVPN AS:"/>
+                <Label fx:id="dotOvpn" text="●" style="-fx-text-fill: #999999; -fx-font-size: 16;"/>
+                <Button fx:id="btnOvpnOn"  text="Включить"  onAction="#handleOvpnOn"/>
+                <Button fx:id="btnOvpnOff" text="Выключить" onAction="#handleOvpnOff"/>
+            </HBox>
+
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <Label text="Координатор:"/>
+                <Label fx:id="dotCoord" text="●" style="-fx-text-fill: #999999; -fx-font-size: 16;"/>
+                <Button fx:id="btnStartCoordinator" text="Запустить координатор" onAction="#handleStartCoordinator"/>
+                <Button fx:id="btnStopCoordinator"  text="Остановить" onAction="#handleStopCoordinator"/>
+            </HBox>
+
+            <!-- ЛОГ СЕРВЕРА -->
+            <TitledPane text="Координатор — лог" expanded="false">
+                <content>
+                    <VBox spacing="6">
+                        <TextArea fx:id="coordLogArea" prefRowCount="10" wrapText="true" editable="false"/>
+                        <HBox spacing="6" alignment="CENTER_RIGHT">
+                            <Button text="Очистить" onAction="#handleClearCoordLog"/>
+                        </HBox>
+                    </VBox>
+                </content>
+            </TitledPane>
+
+            <Separator/>
+
+            <Label fx:id="statusLabel" text="Load INI, OAuth from ENV: OAUTH_TOKEN" style="-fx-text-fill: #666;"/>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="8">
+            <padding><Insets topRightBottomLeft="12"/></padding>
+
+            <HBox spacing="8">
+                <Button text="Список ВМ" onAction="#handleListInstances"/>
+                <Button fx:id="btnCreateSpot" text="Создать SPOT" onAction="#handleCreateSpot" disable="true"/>
+                <Button text="Удалить выбранные" onAction="#handleDeleteSelected"/>
+            </HBox>
+
+            <TableView fx:id="instancesTable" prefHeight="520" VBox.vgrow="ALWAYS">
+                <columns>
+                    <TableColumn fx:id="colId"       text="ID"        prefWidth="220"/>
+                    <TableColumn fx:id="colName"     text="Name"      prefWidth="180"/>
+                    <TableColumn fx:id="colZone"     text="Zone"      prefWidth="100"/>
+                    <TableColumn fx:id="colStatus"   text="Status"    prefWidth="120"/>
+                    <TableColumn fx:id="colIP"       text="IP"        prefWidth="160"/>
+                    <TableColumn fx:id="colCreated"  text="Created"   prefWidth="180"/>
+                    <TableColumn fx:id="colPreempt"  text="SPOT?"     prefWidth="80"/>
+                </columns>
+            </TableView>
+        </VBox>
+    </center>
+</BorderPane>
+
+
+
+

@@ -1,5 +1,5 @@
 // src/main/java/orhestra/ui/util/IniConfig.java
-package orhestra.ui.util;
+package orhestra.coordinator.util;
 
 public class IniConfig {
     public int vmCount;

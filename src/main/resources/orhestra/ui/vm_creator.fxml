@@ -4,7 +4,7 @@
 <?import javafx.scene.layout.*?>
 
 <VBox xmlns:fx="http://javafx.com/fxml"
-      fx:controller="orhestra.ui.VmCreatorController"
+      fx:controller="orhestra.coordinator.ui.VmCreatorController"
       spacing="10.0">
 
     <!-- Внешние отступы всей вкладки -->

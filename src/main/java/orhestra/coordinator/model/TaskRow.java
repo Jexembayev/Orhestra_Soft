@@ -1,5 +1,5 @@
 // src/main/java/orhestra/ui/model/TaskRow.java
-package orhestra.ui.model;
+package orhestra.coordinator.model;
 
 import javafx.beans.property.*;
 

@@ -1,11 +1,11 @@
 // src/main/java/orhestra/ui/VmCreatorController.java
-package orhestra.ui;
+package orhestra.coordinator.ui;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.stage.FileChooser;
-import orhestra.ui.util.IniConfig;
-import orhestra.ui.util.IniParser;
+import orhestra.coordinator.util.IniConfig;
+import orhestra.coordinator.util.IniParser;
 
 import java.io.File;
 

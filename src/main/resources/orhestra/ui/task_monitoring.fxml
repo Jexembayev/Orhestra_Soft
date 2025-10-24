@@ -3,7 +3,7 @@
 <?import javafx.scene.control.*?>
 
 <VBox xmlns:fx="http://javafx.com/fxml"
-      fx:controller="orhestra.ui.TaskMonitoringController"
+      fx:controller="orhestra.coordinator.ui.TaskMonitoringController"
       spacing="10.0" styleClass="pad">
     <HBox spacing="10.0">
         <Button text="Обновить" onAction="#refreshTasks"/>

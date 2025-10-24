@@ -1,5 +1,5 @@
 // src/main/java/orhestra/ui/util/IniParser.java
-package orhestra.ui.util;
+package orhestra.coordinator.util;
 
 import java.io.IOException;
 import java.nio.file.Files;
