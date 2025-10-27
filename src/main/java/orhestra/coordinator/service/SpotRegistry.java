@@ -1,77 +1,82 @@
+// src/main/java/orhestra/coordinator/service/SpotRegistry.java
 package orhestra.coordinator.service;
 
-import orhestra.coordinator.model.SpotRow;
+import orhestra.coordinator.store.model.SpotNode;
 
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Память о спотах + снапшоты для UI. */
 public class SpotRegistry {
 
-    /** Внутреннее хранение фактов от агентa. */
-    private static final class SpotInfo {
-        String id;
-        String addr;
-        double cpu;
-        int    tasks;
-        int    totalCores;
-        long   lastBeatEpoch;  // seconds
-        String status = "READY";
+    private static final long DOWN_SEC = 5;
+
+    private static final class Entry {
+        String spotId;
+        String lastIp;
+        double cpuLoad;
+        int runningTasks;
+        int totalCores;
+        long lastBeatEpoch; // seconds
     }
 
-    private final ConcurrentHashMap<String, SpotInfo> map = new ConcurrentHashMap<>();
+    // по nodeId
+    private final ConcurrentHashMap<String, Entry> map = new ConcurrentHashMap<>();
 
-    /** Heartbeat от HTTP-агента. */
     public void heartbeat(String nodeId, double cpu, int tasks, int totalCores, String ip) {
-        if (nodeId == null || nodeId.isBlank()) nodeId = "unknown";
-        final String key = nodeId;
-
-        SpotInfo s = map.computeIfAbsent(key, k -> {
-            SpotInfo x = new SpotInfo();
-            x.id = k;
+        Entry e = map.computeIfAbsent(nodeId, k -> {
+            Entry x = new Entry();
+            x.spotId = k;
             return x;
         });
-        s.addr          = (ip == null ? "" : ip);
-        s.cpu           = cpu;
-        s.tasks         = tasks;
-        s.totalCores    = Math.max(totalCores, 0);
-        s.lastBeatEpoch = Instant.now().getEpochSecond();
-        s.status        = "READY";
+        e.lastIp = ip;
+        e.cpuLoad = cpu;
+        e.runningTasks = tasks;
+        e.totalCores = totalCores;
+        e.lastBeatEpoch = System.currentTimeMillis() / 1000L;
     }
 
-    /** Снимок для UI (готовые строки таблицы). */
-    public List<SpotRow> snapshot() {
-        long now = Instant.now().getEpochSecond();
-
-        List<SpotRow> out = new ArrayList<>(map.size());
-        for (SpotInfo s : map.values()) {
-            SpotRow r = new SpotRow();
-            // id в UI числовой – возьмём хэш, но строковый id покажем в addr
-            try { r.setId(Math.abs(s.id.hashCode())); } catch (Throwable ignored) {}
-            r.setAddr(s.addr == null || s.addr.isBlank() ? s.id : (s.addr + " (" + s.id + ")"));
-            r.setCpu(s.cpu);
-            r.setTasks(s.tasks);
-            r.setLastBeatEpoch(s.lastBeatEpoch);
-            r.setStatus((now - s.lastBeatEpoch > 10) ? "OFFLINE" : s.status);
-            try { r.setTotalCores(s.totalCores); } catch (Throwable ignored) {}
-            out.add(r);
+    // SpotRegistry.java
+    public List<String> pruneAndGetRemovedIds(long ttlSec) {
+        long now = System.currentTimeMillis()/1000L;
+        var removed = new java.util.ArrayList<String>();
+        for (var it = map.entrySet().iterator(); it.hasNext();) {
+            var e = it.next().getValue();
+            if (now - e.lastBeatEpoch > ttlSec) {
+                removed.add(e.spotId);
+                it.remove();
+            }
         }
-
-        out.sort(Comparator.comparingInt(SpotRow::getId));
-        return out;
+        return removed;
     }
 
-    /** Для отладки. */
     public int size() { return map.size(); }
 
-    /** Удаление «старых» записей (опционально). */
-    public void reapOlderThanSeconds(long seconds) {
-        long lim = Instant.now().getEpochSecond() - seconds;
-        map.values().removeIf(s -> s.lastBeatEpoch < lim);
+    /** Снэпшот для UI в виде SpotNode */
+    public List<SpotNode> snapshotNodes() {
+        long now = System.currentTimeMillis() / 1000L;
+        List<SpotNode> list = new ArrayList<>(map.size());
+        for (Entry e : map.values()) {
+            long age = Math.max(0, now - e.lastBeatEpoch);
+            String status = (age > DOWN_SEC) ? "DOWN" : "UP";
+            list.add(new SpotNode(
+                    e.spotId,
+                    e.cpuLoad,
+                    e.runningTasks,
+                    status,
+                    Instant.ofEpochSecond(e.lastBeatEpoch),
+                    e.totalCores,
+                    e.lastIp
+            ));
+        }
+        // опционально — сортировка: свежие сверху
+        list.sort(Comparator.comparing(SpotNode::lastSeen, Comparator.nullsLast(Comparator.reverseOrder())));
+        return list;
     }
-}
 
+    /** Очистка (если нужна кнопка сброса) */
+    public void clear() { map.clear(); }
+}
 
 
 

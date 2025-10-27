@@ -3,23 +3,23 @@
 <?import javafx.scene.control.*?>
 
 <VBox spacing="8" xmlns:fx="http://javafx.com/fxml"
-      fx:controller="orhestra.coordinator.ui.SpotMonitoringController">
+      fx:controller="orhestra.coordinator.ui.SpotMonitoringController"
+      stylesheets="@spots.css" styleClass="pad">
+
     <HBox spacing="8">
-        <Label text="Spots:"/>
-        <Label fx:id="lblTotal" text="0"/>
+        <Label text="Spots" styleClass="title"/>
+        <Label fx:id="lblTotal" text="0" styleClass="muted"/>
         <Region HBox.hgrow="ALWAYS"/>
-        <Button text="Refresh" onAction="#handleRefresh"/>
     </HBox>
 
     <TableView fx:id="table" prefHeight="520" VBox.vgrow="ALWAYS">
         <columns>
-            <TableColumn fx:id="colId"       text="ID"        prefWidth="80"/>
-            <TableColumn fx:id="colAddr"     text="Address"   prefWidth="220"/>
-            <TableColumn fx:id="colCPU"      text="CPU %"     prefWidth="100"/>
-            <TableColumn fx:id="colTasks"    text="Tasks"     prefWidth="90"/>
-            <TableColumn fx:id="colBeat"     text="LastBeat(s)" prefWidth="120"/>
-            <TableColumn fx:id="colStatus"   text="Status"    prefWidth="120"/>
+            <TableColumn fx:id="colId"       text="ID"           prefWidth="120"/>
+            <TableColumn fx:id="colAddr"     text="Address"      prefWidth="200"/>
+            <TableColumn fx:id="colCPU"      text="CPU"          prefWidth="160"/>
+            <TableColumn fx:id="colTasks"    text="Tasks"        prefWidth="80"/>
+            <TableColumn fx:id="colBeat"     text="Last Beat"    prefWidth="120"/>
+            <TableColumn fx:id="colStatus"   text="Status"       prefWidth="120"/>
         </columns>
     </TableView>
 </VBox>
-

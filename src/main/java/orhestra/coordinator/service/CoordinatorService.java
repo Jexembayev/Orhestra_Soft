@@ -5,11 +5,10 @@ import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import orhestra.coordinator.server.CoordinatorNettyServer;
+import orhestra.coordinator.store.model.SpotNode;
 
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -27,7 +26,8 @@ public class CoordinatorService {
     private Channel serverChannel;
 
     private Consumer<String> logSink = s -> {}; // по умолчанию молчим
-    private Consumer<List<orhestra.coordinator.model.SpotRow>> spotListener = null;
+    /** теперь SpotNode, а не SpotRow */
+    private Consumer<List<SpotNode>> spotListener = null;
 
     private ScheduledExecutorService ticker;
 
@@ -39,8 +39,8 @@ public class CoordinatorService {
         CoordinatorNettyServer.setLogger(this.logSink);
     }
 
-    /** UI (SpotMonitoringController) подпишется и будет получать раз в секунду снапшоты. */
-    public void setSpotListener(Consumer<List<orhestra.coordinator.model.SpotRow>> listener) {
+    /** UI подпишется и будет получать раз в секунду снапшоты SpotNode. */
+    public void setSpotListener(Consumer<List<SpotNode>> listener) {
         this.spotListener = listener;
     }
 
@@ -64,7 +64,7 @@ public class CoordinatorService {
             serverChannel = b.bind(port).syncUninterruptibly().channel();
             serverChannel.closeFuture().addListener(f -> stop());
 
-            // тикер снапшотов для SpotMonitoring
+            // тикер снапшотов для SpotMonitoring (SpotNode)
             ticker = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "coord-snapshot");
                 t.setDaemon(true);
@@ -73,7 +73,8 @@ public class CoordinatorService {
             ticker.scheduleAtFixedRate(() -> {
                 var l = spotListener;
                 if (l != null) {
-                    var snapshot = CoordinatorNettyServer.REGISTRY.snapshot(); // List<SpotRow>
+                    // <<< ВАЖНО: используем новый API реестра
+                    List<SpotNode> snapshot = CoordinatorNettyServer.REGISTRY.snapshotNodes();
                     l.accept(snapshot);
                 }
             }, 1000, 1000, TimeUnit.MILLISECONDS);
@@ -104,4 +105,5 @@ public class CoordinatorService {
         }
     }
 }
+
 
