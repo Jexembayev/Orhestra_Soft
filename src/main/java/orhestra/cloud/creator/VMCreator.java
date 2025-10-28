@@ -44,7 +44,7 @@ public class VMCreator {
         
             runcmd:
               # записываем адрес координатора (временно хардкод)
-              - 'echo "COORDINATOR_URL=http://172.27.228.4:8081" > /etc/default/spot-agent'
+              - 'echo "COORDINATOR_URL=http://172.27.228.2:8081" > /etc/default/spot-agent'
         
               # создаём systemd unit для запуска агента
               - |

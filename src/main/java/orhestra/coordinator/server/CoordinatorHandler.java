@@ -10,7 +10,6 @@ import orhestra.coordinator.core.AppBus;
 
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -53,6 +52,7 @@ class CoordinatorHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         if (!known) CoordinatorNettyServer.log("HTTP " + m + " " + uri);
 
         try {
+            // ---------- ping ----------
             if (m.equals(HttpMethod.GET) && "/ping".equals(uri)) {
                 write(ctx, OK, "text/plain", "PONG\n"); return;
             }
@@ -93,7 +93,7 @@ class CoordinatorHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
                 write(ctx, OK, "text/plain", "OK\n"); return;
             }
 
-            // ---------- get-task (с батч-выдачей через ?maxN=K) ----------
+            // ---------- get-task (ОДНА задача, как ждёт агент) ----------
             if (m.equals(HttpMethod.GET) && uri.startsWith("/internal/get-task")) {
                 String ip = ((InetSocketAddress) ctx.channel().remoteAddress())
                         .getAddress().getHostAddress();
@@ -101,42 +101,46 @@ class CoordinatorHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
                 QueryStringDecoder q = new QueryStringDecoder(uri);
                 String nodeId = q.parameters().getOrDefault("nodeId", java.util.List.of("unknown")).get(0);
-                int maxN = 1;
-                try {
-                    maxN = Math.max(1, Math.min(16,
-                            Integer.parseInt(q.parameters().getOrDefault("maxN", java.util.List.of("1")).get(0))));
-                } catch (Exception ignore) {}
 
-                var out = new ArrayList<Map<String,Object>>();
-                for (int i=0; i<maxN; i++) {
-                    Optional<orhestra.coordinator.store.dao.TaskDao.TaskPick> pick =
-                            CoordinatorNettyServer.TASKS.pickOneAndAssign(nodeId);
-                    if (pick.isEmpty()) break;
-                    out.add(Map.of(
-                            "id", pick.get().id(),
-                            "payload", M.readTree(pick.get().payload())
-                    ));
-                }
-                CoordinatorNettyServer.GET_TASK_COUNT.add(out.size());
-                if (out.isEmpty()) { write(ctx, NOT_FOUND, "text/plain", "no-task\n"); return; }
+                Optional<orhestra.coordinator.store.dao.TaskDao.TaskPick> pick =
+                        CoordinatorNettyServer.TASKS.pickOneAndAssign(nodeId);
+
+                CoordinatorNettyServer.GET_TASK_COUNT.increment();
+
+                if (pick.isEmpty()) { write(ctx, NOT_FOUND, "text/plain", "no-task\n"); return; }
 
                 AppBus.fireTasksChanged();
-                String json = M.writeValueAsString(out);
+
+                String json = M.writeValueAsString(Map.of(
+                        "id", pick.get().id(),
+                        "payload", M.readTree(pick.get().payload())
+                ));
                 write(ctx, OK, "application/json", json); return;
             }
 
-            // ---------- task-result (поддержка метрик) ----------
+            // ---------- task-result (поддержка taskId/ok/status) ----------
             if (m.equals(HttpMethod.POST) && "/internal/task-result".equals(uri)) {
                 String body = req.content().toString(StandardCharsets.UTF_8);
                 var node = M.readTree(body);
-                String id = node.path("id").asText();
-                boolean ok = node.path("ok").asBoolean(false);
+
+                // id может приходить как "id" или "taskId"
+                String id = node.path("id").asText(null);
+                if (id == null || id.isBlank()) id = node.path("taskId").asText();
+
+                // ok может быть boolean ok, либо строковый status == "OK"
+                boolean ok = node.has("ok")
+                        ? node.path("ok").asBoolean(false)
+                        : "OK".equalsIgnoreCase(node.path("status").asText());
 
                 if (ok) {
                     Long runtimeMs = node.has("runtimeMs") ? node.path("runtimeMs").asLong() : 0L;
-                    Integer iter   = node.has("iter") ? node.path("iter").asInt() : null;
-                    Double fopt    = node.has("fopt") ? node.path("fopt").asDouble() : null;
-                    String charts  = node.has("charts") ? node.path("charts").toString() : null; // любые массивы/json
+                    Integer iter   = node.has("iter")      ? node.path("iter").asInt()      : null;
+                    Double fopt    = node.has("fopt")      ? node.path("fopt").asDouble()   : null;
+                    // можешь складывать любые сырые массивы/json, например bestPos → charts
+                    String charts  = node.has("charts")
+                            ? node.path("charts").toString()
+                            : (node.has("bestPos") ? node.path("bestPos").toString() : null);
+
                     CoordinatorNettyServer.TASKS.completeOkWithMetrics(id, runtimeMs, iter, fopt, charts);
                 } else {
                     CoordinatorNettyServer.TASKS.completeFailed(id);
@@ -147,6 +151,7 @@ class CoordinatorHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
                 write(ctx, OK, "text/plain", "OK\n"); return;
             }
 
+            // ---------- unknown ----------
             CoordinatorNettyServer.log("HTTP 404 " + uri);
             write(ctx, NOT_FOUND, "text/plain", "unknown\n");
         } catch (Exception e) {
@@ -169,6 +174,7 @@ class CoordinatorHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         try { return Double.parseDouble(String.valueOf(v)); } catch (Exception ignore) { return def; }
     }
 }
+
 
 
 

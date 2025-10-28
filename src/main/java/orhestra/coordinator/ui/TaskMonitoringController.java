@@ -5,10 +5,12 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.stage.FileChooser;
 import orhestra.coordinator.core.AppBus;
 import orhestra.coordinator.server.CoordinatorNettyServer;
 import orhestra.coordinator.store.dao.TaskDao.TaskView;
 
+import java.io.File;
 import java.util.List;
 
 public class TaskMonitoringController {
@@ -78,10 +80,88 @@ public class TaskMonitoringController {
 
     @FXML
     private void onAddJsonFile() {
-        // твоя текущая реализация загрузки JSON → enqueue(...) — оставляем
-        // (если ещё нет — напишем отдельным шагом генератор тасков из JSON-диапазонов)
-        new Alert(Alert.AlertType.INFORMATION, "Загрузка JSON пока не реализована здесь.", ButtonType.OK).showAndWait();
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Выберите JSON с задачами");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files", "*.json"));
+        File f = fc.showOpenDialog(taskTable.getScene().getWindow());
+        if (f == null) return;
+
+        try {
+            String txt = java.nio.file.Files.readString(f.toPath());
+            com.fasterxml.jackson.databind.ObjectMapper M = new com.fasterxml.jackson.databind.ObjectMapper();
+            var root = M.readTree(txt);
+
+            int enqueued = 0;
+
+            // Формат 1: диапазоны
+            // {
+            //   "algorithms": ["sphere","rastrigin"],
+            //   "iterations": {"min":100,"max":300,"step":100},
+            //   "dimension":  {"min":2,"max":4,"step":1},
+            //   "...": ...
+            // }
+            if (root.has("algorithms")) {
+                var algs = M.convertValue(root.get("algorithms"), new com.fasterxml.jackson.core.type.TypeReference<java.util.List<String>>(){});
+                var iters = expandRange(root.path("iterations"));
+                var dims  = expandRange(root.path("dimension"));
+                if (dims.isEmpty()) dims = java.util.List.of(2); // дефолт на всякий случай
+                if (iters.isEmpty()) iters = java.util.List.of(100);
+
+                for (String alg : algs) {
+                    for (Integer iterMax : iters) {
+                        for (Integer dim : dims) {
+                            var payload = new java.util.LinkedHashMap<String,Object>();
+                            payload.put("alg", alg);
+                            payload.put("iterations", java.util.Map.of("max", iterMax));
+                            payload.put("dimension", dim);
+                            // Без "cmd": агент в твоём варианте может работать с внешним скриптом — оставляем пусто.
+                            String id = java.util.UUID.randomUUID().toString();
+                            String payloadJson = M.writeValueAsString(payload);
+                            CoordinatorNettyServer.TASKS.enqueue(id, payloadJson, alg, /*runNo*/1, /*prio*/0);
+                            enqueued++;
+                        }
+                    }
+                }
+            }
+            // Формат 2: список готовых payload-ов
+            // [ { ... }, { ... } ]
+            else if (root.isArray()) {
+                for (var n : root) {
+                    String payloadJson = n.toString();
+                    String alg = n.has("alg") ? n.get("alg").asText() : "ALG";
+                    String id = java.util.UUID.randomUUID().toString();
+                    CoordinatorNettyServer.TASKS.enqueue(id, payloadJson, alg, 1, 0);
+                    enqueued++;
+                }
+            } else {
+                throw new IllegalArgumentException("Неизвестный формат JSON.");
+            }
+
+            AppBus.fireTasksChanged();
+            refreshTasks();
+            new Alert(Alert.AlertType.INFORMATION, "Добавлено задач: " + enqueued, ButtonType.OK).showAndWait();
+
+        } catch (Exception e) {
+            new Alert(Alert.AlertType.ERROR, "Ошибка загрузки: " + e.getMessage(), ButtonType.OK).showAndWait();
+        }
     }
+
+    /** Вспомогалка: вытянуть список значений из {min,max,step} или единственного числа */
+    private static java.util.List<Integer> expandRange(com.fasterxml.jackson.databind.JsonNode node) {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        if (node == null || node.isMissingNode() || node.isNull()) return out;
+
+        if (node.isObject()) {
+            int min  = node.path("min").asInt(0);
+            int max  = node.path("max").asInt(min);
+            int step = Math.max(1, node.path("step").asInt(1));
+            for (int v = min; v <= max; v += step) out.add(v);
+        } else if (node.isInt()) {
+            out.add(node.asInt());
+        }
+        return out;
+    }
+
 
     // ---- helpers ----
 
