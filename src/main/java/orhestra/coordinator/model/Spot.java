@@ -1,0 +1,158 @@
+package orhestra.coordinator.model;
+
+import java.time.Instant;
+import java.util.Objects;
+
+/**
+ * Immutable domain model representing a SPOT compute node.
+ */
+public final class Spot {
+    private final String id;
+    private final String ipAddress;
+    private final double cpuLoad;
+    private final int runningTasks;
+    private final int totalCores;
+    private final SpotStatus status;
+    private final Instant lastHeartbeat;
+    private final Instant registeredAt;
+
+    private Spot(Builder builder) {
+        this.id = Objects.requireNonNull(builder.id, "id is required");
+        this.ipAddress = builder.ipAddress;
+        this.cpuLoad = builder.cpuLoad;
+        this.runningTasks = builder.runningTasks;
+        this.totalCores = builder.totalCores;
+        this.status = Objects.requireNonNull(builder.status, "status is required");
+        this.lastHeartbeat = builder.lastHeartbeat;
+        this.registeredAt = builder.registeredAt;
+    }
+
+    // Getters
+    public String id() {
+        return id;
+    }
+
+    public String ipAddress() {
+        return ipAddress;
+    }
+
+    public double cpuLoad() {
+        return cpuLoad;
+    }
+
+    public int runningTasks() {
+        return runningTasks;
+    }
+
+    public int totalCores() {
+        return totalCores;
+    }
+
+    public SpotStatus status() {
+        return status;
+    }
+
+    public Instant lastHeartbeat() {
+        return lastHeartbeat;
+    }
+
+    public Instant registeredAt() {
+        return registeredAt;
+    }
+
+    /** Check if SPOT is considered healthy (UP status) */
+    public boolean isHealthy() {
+        return status == SpotStatus.UP;
+    }
+
+    /** Create a builder from this spot (for updates) */
+    public Builder toBuilder() {
+        return new Builder()
+                .id(id)
+                .ipAddress(ipAddress)
+                .cpuLoad(cpuLoad)
+                .runningTasks(runningTasks)
+                .totalCores(totalCores)
+                .status(status)
+                .lastHeartbeat(lastHeartbeat)
+                .registeredAt(registeredAt);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private String id;
+        private String ipAddress;
+        private double cpuLoad;
+        private int runningTasks;
+        private int totalCores;
+        private SpotStatus status = SpotStatus.UP;
+        private Instant lastHeartbeat;
+        private Instant registeredAt;
+
+        public Builder id(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder ipAddress(String ipAddress) {
+            this.ipAddress = ipAddress;
+            return this;
+        }
+
+        public Builder cpuLoad(double cpuLoad) {
+            this.cpuLoad = cpuLoad;
+            return this;
+        }
+
+        public Builder runningTasks(int runningTasks) {
+            this.runningTasks = runningTasks;
+            return this;
+        }
+
+        public Builder totalCores(int totalCores) {
+            this.totalCores = totalCores;
+            return this;
+        }
+
+        public Builder status(SpotStatus status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder lastHeartbeat(Instant lastHeartbeat) {
+            this.lastHeartbeat = lastHeartbeat;
+            return this;
+        }
+
+        public Builder registeredAt(Instant registeredAt) {
+            this.registeredAt = registeredAt;
+            return this;
+        }
+
+        public Spot build() {
+            return new Spot(this);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (!(o instanceof Spot spot))
+            return false;
+        return Objects.equals(id, spot.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    @Override
+    public String toString() {
+        return "Spot{id='" + id + "', status=" + status + ", cores=" + totalCores + "}";
+    }
+}

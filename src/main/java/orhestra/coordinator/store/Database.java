@@ -1,0 +1,162 @@
+package orhestra.coordinator.store;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import orhestra.coordinator.config.CoordinatorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+/**
+ * Database connection pool and schema management.
+ * Uses HikariCP for connection pooling.
+ */
+public final class Database implements AutoCloseable {
+
+    private static final Logger log = LoggerFactory.getLogger(Database.class);
+
+    private final HikariDataSource dataSource;
+
+    public Database(CoordinatorConfig config) {
+        this(config.databaseUrl(), config.databasePoolSize());
+    }
+
+    public Database(String jdbcUrl, int poolSize) {
+        HikariConfig hikariConfig = new HikariConfig();
+        hikariConfig.setJdbcUrl(jdbcUrl);
+        hikariConfig.setMaximumPoolSize(poolSize);
+        hikariConfig.setMinimumIdle(2);
+        hikariConfig.setConnectionTimeout(5000);
+        hikariConfig.setIdleTimeout(300000);
+        hikariConfig.setPoolName("orhestra-db-pool");
+        hikariConfig.setAutoCommit(false);
+
+        // H2 specific settings
+        if (jdbcUrl.contains("h2:")) {
+            hikariConfig.addDataSourceProperty("MODE", "PostgreSQL");
+        }
+
+        this.dataSource = new HikariDataSource(hikariConfig);
+
+        log.info("Database pool initialized: {}", jdbcUrl);
+
+        // Initialize schema
+        initSchema();
+    }
+
+    /**
+     * Get a connection from the pool.
+     * Caller is responsible for closing the connection.
+     */
+    public Connection getConnection() throws SQLException {
+        return dataSource.getConnection();
+    }
+
+    /**
+     * Get the underlying DataSource (for frameworks that need it).
+     */
+    public DataSource getDataSource() {
+        return dataSource;
+    }
+
+    /**
+     * Check if database is healthy.
+     */
+    public boolean isHealthy() {
+        try (Connection conn = getConnection()) {
+            return conn.isValid(2);
+        } catch (SQLException e) {
+            log.warn("Database health check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Initialize database schema.
+     */
+    private void initSchema() {
+        try (Connection conn = getConnection();
+                Statement st = conn.createStatement()) {
+
+            // ---------- JOBS ----------
+            st.addBatch("""
+                        CREATE TABLE IF NOT EXISTS jobs (
+                            id              VARCHAR(64) PRIMARY KEY,
+                            jar_path        VARCHAR(1024) NOT NULL,
+                            main_class      VARCHAR(256) NOT NULL,
+                            config          CLOB NOT NULL,
+                            status          VARCHAR(20) DEFAULT 'PENDING',
+                            total_tasks     INT DEFAULT 0,
+                            completed_tasks INT DEFAULT 0,
+                            failed_tasks    INT DEFAULT 0,
+                            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            started_at      TIMESTAMP,
+                            finished_at     TIMESTAMP
+                        );
+                    """);
+
+            // ---------- TASKS ----------
+            st.addBatch("""
+                        CREATE TABLE IF NOT EXISTS tasks (
+                            id              VARCHAR(64) PRIMARY KEY,
+                            job_id          VARCHAR(64),
+                            payload         CLOB NOT NULL,
+                            status          VARCHAR(20) DEFAULT 'NEW',
+                            assigned_to     VARCHAR(64),
+                            priority        INT DEFAULT 0,
+                            attempts        INT DEFAULT 0,
+                            max_attempts    INT DEFAULT 3,
+                            error_message   VARCHAR(2048),
+                            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            started_at      TIMESTAMP,
+                            finished_at     TIMESTAMP,
+                            runtime_ms      BIGINT,
+                            iter            INT,
+                            fopt            DOUBLE,
+                            result          CLOB
+                        );
+                    """);
+
+            // ---------- SPOTS ----------
+            st.addBatch("""
+                        CREATE TABLE IF NOT EXISTS spots (
+                            id              VARCHAR(64) PRIMARY KEY,
+                            ip_address      VARCHAR(64),
+                            cpu_load        DOUBLE,
+                            running_tasks   INT DEFAULT 0,
+                            total_cores     INT DEFAULT 0,
+                            status          VARCHAR(20) DEFAULT 'UP',
+                            last_heartbeat  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            registered_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """);
+
+            // Indexes
+            st.addBatch(
+                    "CREATE INDEX IF NOT EXISTS idx_tasks_status_priority ON tasks(status, priority DESC, created_at);");
+            st.addBatch("CREATE INDEX IF NOT EXISTS idx_tasks_job_status ON tasks(job_id, status);");
+            st.addBatch("CREATE INDEX IF NOT EXISTS idx_tasks_assigned_running ON tasks(assigned_to, status);");
+            st.addBatch("CREATE INDEX IF NOT EXISTS idx_spots_heartbeat ON spots(last_heartbeat);");
+            st.addBatch("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);");
+
+            st.executeBatch();
+            conn.commit();
+
+            log.info("Database schema initialized");
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to initialize database schema", e);
+        }
+    }
+
+    @Override
+    public void close() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+            log.info("Database pool closed");
+        }
+    }
+}

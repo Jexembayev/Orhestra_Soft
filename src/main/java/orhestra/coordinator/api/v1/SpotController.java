@@ -1,0 +1,54 @@
+package orhestra.coordinator.api.v1;
+
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpMethod;
+import orhestra.coordinator.api.Controller;
+import orhestra.coordinator.api.v1.dto.SpotInfoResponse;
+import orhestra.coordinator.model.Spot;
+import orhestra.coordinator.server.RouterHandler;
+import orhestra.coordinator.service.SpotService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Controller for SPOT node public API.
+ * GET /api/v1/spots - List all SPOTs
+ */
+public class SpotController implements Controller {
+
+    private static final Logger log = LoggerFactory.getLogger(SpotController.class);
+
+    private final SpotService spotService;
+
+    public SpotController(SpotService spotService) {
+        this.spotService = spotService;
+    }
+
+    @Override
+    public boolean matches(HttpMethod method, String path) {
+        return method.equals(HttpMethod.GET) && "/api/v1/spots".equals(path);
+    }
+
+    @Override
+    public ControllerResponse handle(ChannelHandlerContext ctx, FullHttpRequest req, String path) {
+        try {
+            List<Spot> spots = spotService.findAll();
+
+            List<SpotInfoResponse> spotResponses = spots.stream()
+                    .map(SpotInfoResponse::from)
+                    .toList();
+
+            Map<String, Object> response = Map.of("spots", spotResponses);
+
+            return ControllerResponse.json(RouterHandler.mapper().writeValueAsString(response));
+
+        } catch (Exception e) {
+            log.error("Failed to list spots", e);
+            return ControllerResponse.error("failed to list spots");
+        }
+    }
+}

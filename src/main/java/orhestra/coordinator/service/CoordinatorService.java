@@ -4,13 +4,15 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.server.CoordinatorNettyServer;
-import orhestra.coordinator.store.model.SpotNode;
+import orhestra.coordinator.ui.SpotInfo;
 
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * Обёртка над Netty-сервером координатора.
@@ -25,26 +27,31 @@ public class CoordinatorService {
     private EventLoopGroup worker;
     private Channel serverChannel;
 
-    private Consumer<String> logSink = s -> {}; // по умолчанию молчим
-    /** теперь SpotNode, а не SpotRow */
-    private Consumer<List<SpotNode>> spotListener = null;
+    private Consumer<String> logSink = s -> {
+    };
+    private Consumer<List<SpotInfo>> spotListener = null;
 
     private ScheduledExecutorService ticker;
 
     /** Совместимость с CloudController. */
-    public void setLogger(Consumer<String> sink) { setLogSink(sink); }
+    public void setLogger(Consumer<String> sink) {
+        setLogSink(sink);
+    }
 
     public void setLogSink(Consumer<String> sink) {
-        this.logSink = (sink != null) ? sink : s -> {};
+        this.logSink = (sink != null) ? sink : s -> {
+        };
         CoordinatorNettyServer.setLogger(this.logSink);
     }
 
-    /** UI подпишется и будет получать раз в секунду снапшоты SpotNode. */
-    public void setSpotListener(Consumer<List<SpotNode>> listener) {
+    /** UI подпишется и будет получать раз в секунду снапшоты SpotInfo. */
+    public void setSpotListener(Consumer<List<SpotInfo>> listener) {
         this.spotListener = listener;
     }
 
-    public boolean isRunning() { return running.get(); }
+    public boolean isRunning() {
+        return running.get();
+    }
 
     public boolean start(int port) {
         if (running.get()) {
@@ -52,7 +59,7 @@ public class CoordinatorService {
             return true;
         }
         try {
-            boss   = new NioEventLoopGroup(1);
+            boss = new NioEventLoopGroup(1);
             worker = new NioEventLoopGroup();
 
             ServerBootstrap b = new ServerBootstrap()
@@ -64,7 +71,7 @@ public class CoordinatorService {
             serverChannel = b.bind(port).syncUninterruptibly().channel();
             serverChannel.closeFuture().addListener(f -> stop());
 
-            // тикер снапшотов для SpotMonitoring (SpotNode)
+            // тикер снапшотов для SpotMonitoring
             ticker = Executors.newSingleThreadScheduledExecutor(r -> {
                 Thread t = new Thread(r, "coord-snapshot");
                 t.setDaemon(true);
@@ -73,8 +80,7 @@ public class CoordinatorService {
             ticker.scheduleAtFixedRate(() -> {
                 var l = spotListener;
                 if (l != null) {
-                    // <<< ВАЖНО: используем новый API реестра
-                    List<SpotNode> snapshot = CoordinatorNettyServer.REGISTRY.snapshotNodes();
+                    List<SpotInfo> snapshot = getSpotSnapshot();
                     l.accept(snapshot);
                 }
             }, 1000, 1000, TimeUnit.MILLISECONDS);
@@ -89,21 +95,55 @@ public class CoordinatorService {
         }
     }
 
+    /**
+     * Get spot snapshot using SpotService.
+     */
+    private List<SpotInfo> getSpotSnapshot() {
+        return CoordinatorNettyServer.dependencies()
+                .spotService()
+                .findAll()
+                .stream()
+                .map(this::toSpotInfo)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert Spot model to SpotInfo for UI.
+     */
+    private SpotInfo toSpotInfo(Spot spot) {
+        return new SpotInfo(
+                spot.id(),
+                spot.cpuLoad(),
+                spot.runningTasks(),
+                spot.status() != null ? spot.status().name() : "DOWN",
+                spot.lastHeartbeat(),
+                spot.totalCores(),
+                spot.ipAddress());
+    }
+
     public void stop() {
-        if (!running.get()) return;
+        if (!running.get())
+            return;
         try {
             if (serverChannel != null) {
                 serverChannel.close().syncUninterruptibly();
                 serverChannel = null;
             }
         } finally {
-            if (ticker != null) { ticker.shutdownNow(); ticker = null; }
-            if (worker != null) { worker.shutdownGracefully(); worker = null; }
-            if (boss != null)   { boss.shutdownGracefully();   boss = null;   }
+            if (ticker != null) {
+                ticker.shutdownNow();
+                ticker = null;
+            }
+            if (worker != null) {
+                worker.shutdownGracefully();
+                worker = null;
+            }
+            if (boss != null) {
+                boss.shutdownGracefully();
+                boss = null;
+            }
             running.set(false);
             logSink.accept("Coordinator stopped");
         }
     }
 }
-
-

@@ -1,53 +1,64 @@
 package orhestra.coordinator.core;
 
-import orhestra.coordinator.store.Db;
-import orhestra.coordinator.store.dao.SpotDao;
-import orhestra.coordinator.store.dao.TaskDao;
+import orhestra.coordinator.config.Dependencies;
+import orhestra.coordinator.model.Task;
+import orhestra.coordinator.server.CoordinatorNettyServer;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
+/**
+ * Core coordinator operations.
+ * 
+ * This class now delegates to the Dependencies container services.
+ * Previously used legacy DAOs directly.
+ */
 public class CoordinatorCore {
-    private final SpotDao spots;
-    private final TaskDao tasks;
 
-    public CoordinatorCore(Db db) {
-        this.spots = new SpotDao(db);
-        this.tasks = new TaskDao(db);
+    /** Get the dependencies from the running server */
+    private Dependencies deps() {
+        return CoordinatorNettyServer.dependencies();
     }
 
     // ---- SPOTS ----
     public void heartbeat(String spotId, double cpu, int running, int cores, String ip) {
-        spots.upsertHeartbeat(spotId, cpu, running, cores, ip);
+        deps().spotService().heartbeat(spotId, ip, cpu, running, cores);
     }
 
-    /** пометить отвалившихся и освободить их задачи */
-    public int sweepOffline(Duration offline, java.util.function.Consumer<String> log) {
-        Instant cutoff = Instant.now().minus(offline);
-        int down = spots.markDownOlderThan(cutoff);
-        // Реальное освобождение задач сделаем на уровне TaskDao из таймера,
-        // если надо — можно расширить, но часто достаточно освобождать
-        // при следующем тикe или по reconnect.
-        if (down > 0 && log != null) log.accept("Marked DOWN: " + down);
-        return down;
+    /** Mark stale spots as DOWN and free their tasks */
+    public int sweepOffline(Duration offline, Consumer<String> log) {
+        int reaped = deps().spotService().reapStaleSpots();
+        if (reaped > 0 && log != null) {
+            log.accept("Marked DOWN: " + reaped);
+        }
+        return reaped;
     }
 
     // ---- TASKS ----
-    public Optional<TaskDao.TaskPick> getTaskFor(String spotId) {
-        return tasks.pickOneAndAssign(spotId);
+    public Optional<TaskPick> getTaskFor(String spotId) {
+        List<Task> claimed = deps().taskService().claimTasks(spotId, 1);
+        if (claimed.isEmpty()) {
+            return Optional.empty();
+        }
+        Task t = claimed.get(0);
+        return Optional.of(new TaskPick(t.id(), t.payload()));
     }
 
     public void taskDone(String taskId) {
-        tasks.completeOk(taskId);
+        deps().taskRepository().complete(taskId, null, 0, null, null, null);
     }
 
     public void taskFailed(String taskId) {
-        tasks.completeFailed(taskId);
+        deps().taskRepository().fail(taskId, null, "Failed", false);
     }
 
     public int freeTasksOf(String spotId) {
-        return tasks.freeAllFor(spotId);
+        return deps().taskRepository().freeTasksForSpot(spotId);
+    }
+
+    /** Simple holder for claimed task info (replaces legacy TaskDao.TaskPick) */
+    public record TaskPick(String id, String payload) {
     }
 }
-

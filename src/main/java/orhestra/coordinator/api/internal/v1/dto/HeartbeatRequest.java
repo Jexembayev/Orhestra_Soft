@@ -1,0 +1,28 @@
+package orhestra.coordinator.api.internal.v1.dto;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+/**
+ * Request DTO for SPOT heartbeat.
+ * POST /internal/v1/heartbeat
+ */
+public record HeartbeatRequest(
+        @JsonProperty("spotId") String spotId,
+        @JsonProperty("cpuLoad") double cpuLoad,
+        @JsonProperty("runningTasks") int runningTasks,
+        @JsonProperty("totalCores") int totalCores) {
+    public void validate() {
+        if (spotId == null || spotId.isBlank()) {
+            throw new IllegalArgumentException("spotId is required");
+        }
+        if (cpuLoad < 0 || cpuLoad > 100) {
+            throw new IllegalArgumentException("cpuLoad must be between 0 and 100");
+        }
+        if (runningTasks < 0) {
+            throw new IllegalArgumentException("runningTasks must be non-negative");
+        }
+        if (totalCores <= 0) {
+            throw new IllegalArgumentException("totalCores must be positive");
+        }
+    }
+}
