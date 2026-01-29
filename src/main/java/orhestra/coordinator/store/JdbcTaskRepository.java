@@ -418,6 +418,7 @@ public class JdbcTaskRepository implements TaskRepository {
     @Override
     public TaskCompleteResult completeIdempotent(String taskId, String spotId, long runtimeMs, Integer iter,
             Double fopt, String result) {
+        // First check the current state (outside transaction for idempotency checks)
         Optional<Task> taskOpt = findById(taskId);
         if (taskOpt.isEmpty()) {
             return TaskCompleteResult.NOT_FOUND;
@@ -447,13 +448,83 @@ public class JdbcTaskRepository implements TaskRepository {
             return TaskCompleteResult.ALREADY_DONE;
         }
 
-        // Perform the completion
-        boolean updated = complete(taskId, spotId, runtimeMs, iter, fopt, result);
-        return updated ? TaskCompleteResult.COMPLETED : TaskCompleteResult.ALREADY_DONE;
+        // Now perform the ATOMIC completion with job counter update in single
+        // transaction
+        String updateTaskSql = """
+                    UPDATE tasks
+                    SET status = 'DONE', finished_at = ?, runtime_ms = ?, iter = ?, fopt = ?, result = ?
+                    WHERE id = ? AND assigned_to = ? AND status = 'RUNNING'
+                """;
+
+        try (Connection conn = db.getConnection()) {
+            Timestamp now = Timestamp.from(Instant.now());
+
+            // 1. Update task atomically (WHERE ensures only RUNNING tasks are updated)
+            try (PreparedStatement ps = conn.prepareStatement(updateTaskSql)) {
+                ps.setTimestamp(1, now);
+                ps.setLong(2, runtimeMs);
+                setIntOrNull(ps, 3, iter);
+                setDoubleOrNull(ps, 4, fopt);
+                ps.setString(5, result);
+                ps.setString(6, taskId);
+                ps.setString(7, spotId);
+
+                int tasksUpdated = ps.executeUpdate();
+
+                if (tasksUpdated == 0) {
+                    // Task was already completed by another thread - this is idempotent success
+                    conn.rollback();
+                    return TaskCompleteResult.ALREADY_DONE;
+                }
+            }
+
+            // 2. Task was updated (real transition) - now update job counters
+            String jobId = task.jobId();
+            if (jobId != null) {
+                updateJobOnTaskComplete(conn, jobId, now);
+            }
+
+            conn.commit();
+            log.debug("Task {} completed by spot {} and job {} updated", taskId, spotId, jobId);
+            return TaskCompleteResult.COMPLETED;
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to complete task: " + taskId, e);
+        }
+    }
+
+    /**
+     * Update job counters and status when a task completes.
+     * Called within same transaction as task update.
+     */
+    private void updateJobOnTaskComplete(Connection conn, String jobId, Timestamp now) throws SQLException {
+        // Increment completed_tasks and update status in one statement
+        String sql = """
+                    UPDATE jobs
+                    SET completed_tasks = completed_tasks + 1,
+                        started_at = COALESCE(started_at, ?),
+                        status = CASE
+                            WHEN completed_tasks + failed_tasks + 1 >= total_tasks THEN 'COMPLETED'
+                            ELSE 'RUNNING'
+                        END,
+                        finished_at = CASE
+                            WHEN completed_tasks + failed_tasks + 1 >= total_tasks THEN ?
+                            ELSE finished_at
+                        END
+                    WHERE id = ?
+                """;
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, now);
+            ps.setTimestamp(2, now);
+            ps.setString(3, jobId);
+            ps.executeUpdate();
+        }
     }
 
     @Override
     public TaskFailResult failIdempotent(String taskId, String spotId, String errorMessage, boolean retriable) {
+        // First check the current state (outside transaction for idempotency checks)
         Optional<Task> taskOpt = findById(taskId);
         if (taskOpt.isEmpty()) {
             return TaskFailResult.NOT_FOUND;
@@ -480,13 +551,87 @@ public class JdbcTaskRepository implements TaskRepository {
         }
 
         boolean willRetry = retriable && task.canRetry();
+        String jobId = task.jobId();
 
         if (willRetry) {
+            // Retry - just reset task to NEW, don't update job counters
             resetToNew(taskId);
+            log.debug("Task {} failed by spot {}, will retry (attempt {}/{})",
+                    taskId, spotId, task.attempts() + 1, task.maxAttempts());
             return TaskFailResult.RETRIED;
         } else {
-            markFailed(taskId, errorMessage);
+            // Permanent failure - update both task AND job counters atomically
+            return markFailedWithJobUpdate(taskId, jobId, errorMessage);
+        }
+    }
+
+    /**
+     * Mark task as permanently failed and update job counters atomically.
+     */
+    private TaskFailResult markFailedWithJobUpdate(String taskId, String jobId, String errorMessage) {
+        String updateTaskSql = """
+                    UPDATE tasks
+                    SET status = 'FAILED', error_message = ?, finished_at = ?
+                    WHERE id = ? AND status = 'RUNNING'
+                """;
+
+        try (Connection conn = db.getConnection()) {
+            Timestamp now = Timestamp.from(Instant.now());
+
+            // 1. Update task atomically
+            try (PreparedStatement ps = conn.prepareStatement(updateTaskSql)) {
+                ps.setString(1, errorMessage);
+                ps.setTimestamp(2, now);
+                ps.setString(3, taskId);
+
+                int tasksUpdated = ps.executeUpdate();
+
+                if (tasksUpdated == 0) {
+                    // Task was already completed/failed by another thread
+                    conn.rollback();
+                    return TaskFailResult.ALREADY_TERMINAL;
+                }
+            }
+
+            // 2. Task was updated (real transition) - now update job counters
+            if (jobId != null) {
+                updateJobOnTaskFail(conn, jobId, now);
+            }
+
+            conn.commit();
+            log.debug("Task {} permanently failed and job {} updated", taskId, jobId);
             return TaskFailResult.FAILED;
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to mark task as failed: " + taskId, e);
+        }
+    }
+
+    /**
+     * Update job counters and status when a task permanently fails.
+     * Called within same transaction as task update.
+     */
+    private void updateJobOnTaskFail(Connection conn, String jobId, Timestamp now) throws SQLException {
+        String sql = """
+                    UPDATE jobs
+                    SET failed_tasks = failed_tasks + 1,
+                        started_at = COALESCE(started_at, ?),
+                        status = CASE
+                            WHEN completed_tasks + failed_tasks + 1 >= total_tasks THEN 'COMPLETED'
+                            ELSE 'RUNNING'
+                        END,
+                        finished_at = CASE
+                            WHEN completed_tasks + failed_tasks + 1 >= total_tasks THEN ?
+                            ELSE finished_at
+                        END
+                    WHERE id = ?
+                """;
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, now);
+            ps.setTimestamp(2, now);
+            ps.setString(3, jobId);
+            ps.executeUpdate();
         }
     }
 
