@@ -150,6 +150,39 @@ public final class Database implements AutoCloseable {
         } catch (SQLException e) {
             throw new RuntimeException("Failed to initialize database schema", e);
         }
+
+        // Wipe all existing data on startup (clean slate)
+        wipeDataOnStartup();
+    }
+
+    /**
+     * Wipe ALL data from database tables on startup.
+     * Schema (tables, indexes) remains, only rows are deleted.
+     * Runs in a single transaction, fail-fast on error.
+     */
+    private void wipeDataOnStartup() {
+        try (Connection conn = getConnection();
+                Statement st = conn.createStatement()) {
+
+            // Delete in order that respects FK relationships:
+            // tasks -> spots -> jobs (tasks reference jobs)
+            // Using DELETE FROM instead of TRUNCATE for H2 PostgreSQL mode compatibility
+            st.addBatch("DELETE FROM tasks");
+            st.addBatch("DELETE FROM spots");
+            st.addBatch("DELETE FROM jobs");
+
+            st.executeBatch();
+            conn.commit();
+
+            log.info("DB wipe on startup: OK");
+            System.out.println("DB wipe on startup: OK");
+
+        } catch (SQLException e) {
+            // FAIL-FAST: Print full stack trace and throw to prevent server start
+            System.err.println("DB wipe on startup: FAILED");
+            e.printStackTrace(System.err);
+            throw new RuntimeException("Failed to wipe database on startup - server cannot start", e);
+        }
     }
 
     @Override

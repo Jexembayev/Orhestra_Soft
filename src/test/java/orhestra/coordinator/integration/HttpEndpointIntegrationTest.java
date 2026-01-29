@@ -339,6 +339,74 @@ class HttpEndpointIntegrationTest {
                                 "Third claim should return empty - task is DONE not NEW");
         }
 
+        @Test
+        @DisplayName("Server restart: DB wipe clears all data, health still works")
+        void testServerRestartWipesData() throws Exception {
+                String baseUrl = "http://localhost:" + TEST_PORT;
+
+                // 1. Create a job
+                String createJobBody = """
+                                {
+                                    "jarPath": "/test/restart.jar",
+                                    "mainClass": "com.test.RestartTest",
+                                    "algorithms": ["GA"],
+                                    "iterations": {"min": 10, "max": 10, "step": 1},
+                                    "agents": {"min": 5, "max": 5, "step": 1},
+                                    "dimension": {"min": 2, "max": 2, "step": 1}
+                                }
+                                """;
+
+                HttpResponse<String> createResponse = httpClient.send(
+                                HttpRequest.newBuilder()
+                                                .uri(URI.create(baseUrl + "/api/v1/jobs"))
+                                                .header("Content-Type", "application/json")
+                                                .POST(HttpRequest.BodyPublishers.ofString(createJobBody))
+                                                .build(),
+                                HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(201, createResponse.statusCode());
+                JsonNode createResult = MAPPER.readTree(createResponse.body());
+                String jobId = createResult.get("jobId").asText();
+
+                // 2. Verify job exists (GET should return 200)
+                JsonNode job = getJob(baseUrl, jobId);
+                assertEquals("PENDING", job.get("status").asText());
+
+                // 3. "Restart" the server (stop and start again)
+                CoordinatorNettyServer.stop();
+                TimeUnit.MILLISECONDS.sleep(100);
+
+                // Start fresh (new database instance will wipe data)
+                CoordinatorConfig newConfig = CoordinatorConfig.defaults()
+                                .withDatabaseUrl("jdbc:h2:mem:test-http-" + System.nanoTime()
+                                                + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_UPPER=FALSE")
+                                .withMaxAttempts(3);
+                CoordinatorNettyServer.start(TEST_PORT, newConfig);
+                TimeUnit.MILLISECONDS.sleep(200);
+
+                // 4. Verify the previous job no longer exists (GET should return 404)
+                HttpResponse<String> getResponse = httpClient.send(
+                                HttpRequest.newBuilder()
+                                                .uri(URI.create(baseUrl + "/api/v1/jobs/" + jobId))
+                                                .GET()
+                                                .build(),
+                                HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(404, getResponse.statusCode(),
+                                "Job should NOT exist after server restart due to DB wipe. Body: "
+                                                + getResponse.body());
+
+                // 5. Verify health endpoint still works
+                HttpResponse<String> healthResponse = httpClient.send(
+                                HttpRequest.newBuilder()
+                                                .uri(URI.create(baseUrl + "/api/v1/health"))
+                                                .GET()
+                                                .build(),
+                                HttpResponse.BodyHandlers.ofString());
+
+                assertEquals(200, healthResponse.statusCode(), "Health endpoint should work after restart");
+        }
+
         private JsonNode getJob(String baseUrl, String jobId) throws Exception {
                 HttpResponse<String> response = httpClient.send(
                                 HttpRequest.newBuilder()
