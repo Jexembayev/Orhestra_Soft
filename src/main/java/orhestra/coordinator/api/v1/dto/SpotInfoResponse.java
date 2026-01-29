@@ -9,6 +9,8 @@ import java.time.Instant;
 /**
  * Response DTO for SPOT node information.
  * GET /api/v1/spots
+ * 
+ * All fields are null-safe with sensible defaults.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SpotInfoResponse(
@@ -19,11 +21,16 @@ public record SpotInfoResponse(
         @JsonProperty("runningTasks") int runningTasks,
         @JsonProperty("totalCores") int totalCores,
         @JsonProperty("lastHeartbeat") Instant lastHeartbeat) {
-    /** Create response from domain model */
+
+    /**
+     * Create response from domain model with null-safe mapping.
+     * - status defaults to "UP" if null
+     * - ipAddress, lastHeartbeat can be null (omitted in JSON response)
+     */
     public static SpotInfoResponse from(Spot spot) {
         return new SpotInfoResponse(
                 spot.id(),
-                spot.status().name(),
+                spot.status() != null ? spot.status().name() : "UP",
                 spot.ipAddress(),
                 spot.cpuLoad(),
                 spot.runningTasks(),

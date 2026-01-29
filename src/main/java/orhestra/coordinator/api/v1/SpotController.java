@@ -17,6 +17,8 @@ import java.util.Map;
 /**
  * Controller for SPOT node public API.
  * GET /api/v1/spots - List all SPOTs
+ * 
+ * Exceptions bubble to RouterHandler for proper error responses.
  */
 public class SpotController implements Controller {
 
@@ -35,20 +37,21 @@ public class SpotController implements Controller {
 
     @Override
     public ControllerResponse handle(ChannelHandlerContext ctx, FullHttpRequest req, String path) {
+        // No try-catch hiding - let exceptions bubble to RouterHandler for proper error
+        // details
+        List<Spot> spots = spotService.findAll();
+
+        List<SpotInfoResponse> spotResponses = spots.stream()
+                .map(SpotInfoResponse::from)
+                .toList();
+
+        Map<String, Object> response = Map.of("spots", spotResponses);
+
         try {
-            List<Spot> spots = spotService.findAll();
-
-            List<SpotInfoResponse> spotResponses = spots.stream()
-                    .map(SpotInfoResponse::from)
-                    .toList();
-
-            Map<String, Object> response = Map.of("spots", spotResponses);
-
             return ControllerResponse.json(RouterHandler.mapper().writeValueAsString(response));
-
-        } catch (Exception e) {
-            log.error("Failed to list spots", e);
-            return ControllerResponse.error("failed to list spots");
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            // Wrap in RuntimeException - RouterHandler will catch and expose details
+            throw new RuntimeException("Failed to serialize spots response", e);
         }
     }
 }
