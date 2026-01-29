@@ -148,18 +148,21 @@ public class JdbcTaskRepository implements TaskRepository {
     @Override
     public List<Task> claimTasks(String spotId, int maxTasks) {
         // Use SELECT FOR UPDATE to lock rows, then update them
+        // Include job_id so we can return it to the SPOT
         String selectSql = """
-                    SELECT id, payload FROM tasks
+                    SELECT id, job_id, payload FROM tasks
                     WHERE status = 'NEW'
                     ORDER BY priority DESC, created_at
                     LIMIT ?
                     FOR UPDATE
                 """;
 
+        // IMPORTANT: Keep WHERE status='NEW' for atomicity - ensures we never
+        // re-claim a task that was already transitioned by another process
         String updateSql = """
                     UPDATE tasks
                     SET status = 'RUNNING', assigned_to = ?, started_at = ?, attempts = attempts + 1
-                    WHERE id = ?
+                    WHERE id = ? AND status = 'NEW'
                 """;
 
         List<Task> claimed = new ArrayList<>();
@@ -175,6 +178,7 @@ public class JdbcTaskRepository implements TaskRepository {
 
                     while (rs.next()) {
                         String id = rs.getString("id");
+                        String jobId = rs.getString("job_id");
                         String payload = rs.getString("payload");
 
                         updatePs.setString(1, spotId);
@@ -182,9 +186,10 @@ public class JdbcTaskRepository implements TaskRepository {
                         updatePs.setString(3, id);
                         updatePs.addBatch();
 
-                        // Build claimed task (minimal info needed by SPOT)
+                        // Build claimed task with jobId for response
                         claimed.add(Task.builder()
                                 .id(id)
+                                .jobId(jobId)
                                 .payload(payload)
                                 .status(TaskStatus.RUNNING)
                                 .assignedTo(spotId)
@@ -194,13 +199,23 @@ public class JdbcTaskRepository implements TaskRepository {
                 }
 
                 if (!claimed.isEmpty()) {
-                    updatePs.executeBatch();
+                    int[] results = updatePs.executeBatch();
+                    // Log how many rows were actually updated (should match claimed.size())
+                    int actualUpdates = 0;
+                    for (int r : results) {
+                        if (r > 0)
+                            actualUpdates++;
+                    }
+                    if (actualUpdates != claimed.size()) {
+                        log.warn("Claim atomicity: selected {} tasks but only updated {} (race condition)",
+                                claimed.size(), actualUpdates);
+                    }
                 }
 
                 conn.commit();
 
                 if (!claimed.isEmpty()) {
-                    log.debug("Claimed {} tasks for spot {}", claimed.size(), spotId);
+                    log.info("Claimed {} tasks for spot {}", claimed.size(), spotId);
                 }
 
                 return claimed;

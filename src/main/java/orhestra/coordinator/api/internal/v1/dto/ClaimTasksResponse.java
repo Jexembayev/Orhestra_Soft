@@ -13,14 +13,15 @@ import java.util.List;
 public record ClaimTasksResponse(
         @JsonProperty("tasks") List<ClaimedTask> tasks) {
     /**
-     * A single claimed task with its payload.
+     * A single claimed task with its payload and job context.
      */
     public record ClaimedTask(
             @JsonProperty("taskId") String taskId,
+            @JsonProperty("jobId") String jobId,
             @JsonRawValue @JsonProperty("payload") String payload // Raw JSON, not re-serialized
     ) {
         public static ClaimedTask from(Task task) {
-            return new ClaimedTask(task.id(), task.payload());
+            return new ClaimedTask(task.id(), task.jobId(), task.payload());
         }
     }
 
