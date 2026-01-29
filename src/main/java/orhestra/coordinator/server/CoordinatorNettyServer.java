@@ -79,6 +79,24 @@ public final class CoordinatorNettyServer {
     }
 
     /**
+     * Try to get the dependencies container without throwing.
+     * Returns null if server not started yet.
+     * Use this from UI controllers that need to be resilient to startup timing.
+     * 
+     * @return dependencies or null if not yet available
+     */
+    public static Dependencies tryDependencies() {
+        return dependencies;
+    }
+
+    /**
+     * Check if dependencies are available.
+     */
+    public static boolean hasDependencies() {
+        return dependencies != null;
+    }
+
+    /**
      * Create the HTTP pipeline with the RouterHandler.
      * 
      * @throws IllegalStateException if dependencies not initialized

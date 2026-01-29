@@ -11,6 +11,7 @@ import javafx.css.PseudoClass;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.ProgressBarTableCell;
+import orhestra.coordinator.config.Dependencies;
 import orhestra.coordinator.core.AppBus;
 import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.server.CoordinatorNettyServer;
@@ -19,6 +20,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.stream.Collectors;
 
 public class SpotMonitoringController {
@@ -42,6 +45,8 @@ public class SpotMonitoringController {
 
     private final ObservableList<SpotInfo> data = FXCollections.observableArrayList();
     private static final PseudoClass DOWN = PseudoClass.getPseudoClass("down");
+
+    private Timer retryTimer;
 
     @FXML
     private void initialize() {
@@ -147,12 +152,24 @@ public class SpotMonitoringController {
         // Счётчик всего — биндим один раз
         lblTotal.textProperty().bind(Bindings.size(data).asString());
 
-        // Первичное заполнение
+        // Первичное заполнение - resilient to server not started
         refreshSpots();
     }
 
     private void refreshSpots() {
-        List<SpotInfo> snap = CoordinatorNettyServer.dependencies()
+        Dependencies deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null) {
+            // Server not started yet - show placeholder and schedule retry
+            data.clear();
+            data.add(new SpotInfo("—", null, null, "Server not started", null, null, "Waiting..."));
+            scheduleRetry();
+            return;
+        }
+
+        // Cancel any pending retry
+        cancelRetryTimer();
+
+        List<SpotInfo> snap = deps
                 .spotService()
                 .findAll()
                 .stream()
@@ -160,6 +177,29 @@ public class SpotMonitoringController {
                 .collect(Collectors.toList());
 
         data.setAll(new ArrayList<>(snap));
+    }
+
+    private void scheduleRetry() {
+        if (retryTimer != null)
+            return; // Already scheduled
+
+        retryTimer = new Timer("spot-monitor-retry", true);
+        retryTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    retryTimer = null;
+                    refreshSpots();
+                });
+            }
+        }, 2000); // Retry after 2 seconds
+    }
+
+    private void cancelRetryTimer() {
+        if (retryTimer != null) {
+            retryTimer.cancel();
+            retryTimer = null;
+        }
     }
 
     /**

@@ -14,6 +14,8 @@ import orhestra.coordinator.server.CoordinatorNettyServer;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -83,9 +85,24 @@ public class TaskMonitoringController {
         refreshTasks();
     }
 
+    private Timer retryTimer;
+
     @FXML
     public void refreshTasks() {
-        List<TaskInfo> items = CoordinatorNettyServer.dependencies()
+        var deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null) {
+            // Server not started yet - show placeholder and schedule retry
+            taskTable.getItems().clear();
+            taskTable.getItems().add(new TaskInfo("—", "Server not started", "WAITING", null, null, null,
+                    "Waiting for server...", null, null, null));
+            scheduleRetry();
+            return;
+        }
+
+        // Cancel any pending retry
+        cancelRetryTimer();
+
+        List<TaskInfo> items = deps
                 .taskService()
                 .findRecent(200)
                 .stream()
@@ -94,6 +111,29 @@ public class TaskMonitoringController {
 
         taskTable.getItems().setAll(items);
         taskTable.refresh();
+    }
+
+    private void scheduleRetry() {
+        if (retryTimer != null)
+            return; // Already scheduled
+
+        retryTimer = new Timer("task-monitor-retry", true);
+        retryTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    retryTimer = null;
+                    refreshTasks();
+                });
+            }
+        }, 2000); // Retry after 2 seconds
+    }
+
+    private void cancelRetryTimer() {
+        if (retryTimer != null) {
+            retryTimer.cancel();
+            retryTimer = null;
+        }
     }
 
     /**
