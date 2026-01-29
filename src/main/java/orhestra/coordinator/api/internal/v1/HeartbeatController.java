@@ -50,8 +50,13 @@ public class HeartbeatController implements Controller {
         } catch (IllegalArgumentException e) {
             return ControllerResponse.badRequest(e.getMessage());
         } catch (Exception e) {
-            log.error("Heartbeat controller error", e);
-            return ControllerResponse.error("internal error");
+            log.error("Heartbeat controller error: {}", e.toString(), e);
+            // Return full error for debugging
+            String error = e.toString();
+            if (e.getCause() != null) {
+                error += " <- " + e.getCause().toString();
+            }
+            return ControllerResponse.error(error);
         }
     }
 

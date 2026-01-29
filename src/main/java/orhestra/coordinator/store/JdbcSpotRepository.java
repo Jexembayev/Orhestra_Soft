@@ -124,27 +124,48 @@ public class JdbcSpotRepository implements SpotRepository {
 
     @Override
     public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores) {
-        String sql = """
-                    MERGE INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, status, last_heartbeat, registered_at)
-                    KEY (id)
-                    VALUES (?, ?, ?, ?, ?, 'UP', ?, COALESCE((SELECT registered_at FROM spots WHERE id = ?), ?))
+        // Use UPDATE + INSERT pattern (more portable than MERGE with subselect)
+        String updateSql = """
+                    UPDATE spots
+                    SET ip_address = ?, cpu_load = ?, running_tasks = ?, total_cores = ?,
+                        status = 'UP', last_heartbeat = ?
+                    WHERE id = ?
                 """;
 
-        try (Connection conn = db.getConnection();
-                PreparedStatement ps = conn.prepareStatement(sql)) {
+        String insertSql = """
+                    INSERT INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, status, last_heartbeat, registered_at)
+                    VALUES (?, ?, ?, ?, ?, 'UP', ?, ?)
+                """;
 
+        try (Connection conn = db.getConnection()) {
             Timestamp now = Timestamp.from(Instant.now());
 
-            ps.setString(1, spotId);
-            ps.setString(2, ipAddress);
-            ps.setDouble(3, cpuLoad);
-            ps.setInt(4, runningTasks);
-            ps.setInt(5, totalCores);
-            ps.setTimestamp(6, now);
-            ps.setString(7, spotId);
-            ps.setTimestamp(8, now);
+            // Try UPDATE first
+            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                ps.setString(1, ipAddress);
+                ps.setDouble(2, cpuLoad);
+                ps.setInt(3, runningTasks);
+                ps.setInt(4, totalCores);
+                ps.setTimestamp(5, now);
+                ps.setString(6, spotId);
 
-            ps.executeUpdate();
+                int updated = ps.executeUpdate();
+
+                if (updated == 0) {
+                    // No existing record - INSERT new one
+                    try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
+                        insertPs.setString(1, spotId);
+                        insertPs.setString(2, ipAddress);
+                        insertPs.setDouble(3, cpuLoad);
+                        insertPs.setInt(4, runningTasks);
+                        insertPs.setInt(5, totalCores);
+                        insertPs.setTimestamp(6, now);
+                        insertPs.setTimestamp(7, now);
+                        insertPs.executeUpdate();
+                    }
+                }
+            }
+
             conn.commit();
         } catch (SQLException e) {
             throw new RuntimeException("Failed to update heartbeat for spot: " + spotId, e);

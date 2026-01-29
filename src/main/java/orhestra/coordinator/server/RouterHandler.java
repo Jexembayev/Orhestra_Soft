@@ -93,12 +93,30 @@ public class RouterHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
                     "{\"error\":\"" + escapeJson(e.getMessage()) + "\"}");
         } catch (Throwable t) {
             // Catch ALL exceptions including Error, OutOfMemoryError, etc.
-            log.error("Handler error: {} {} - {}", method, path, t.getMessage(), t);
+            // Log full details including request body for debugging
+            String requestBody = "";
+            try {
+                requestBody = req.content().toString(StandardCharsets.UTF_8);
+            } catch (Exception ignored) {
+            }
+
+            log.error("Handler error: {} {} - Body: [{}] - Exception: {}", method, path, requestBody, t.toString(), t);
             System.err.println("=== ROUTER HANDLER EXCEPTION ===");
+            System.err.println("Method: " + method + " Path: " + path);
+            System.err.println("Request Body: " + requestBody);
             t.printStackTrace(System.err);
             System.err.println("=================================");
+
+            // Build full error chain for debugging
+            StringBuilder errorChain = new StringBuilder(t.toString());
+            Throwable cause = t.getCause();
+            while (cause != null) {
+                errorChain.append(" <- ").append(cause.toString());
+                cause = cause.getCause();
+            }
+
             writeSafe(ctx, INTERNAL_SERVER_ERROR, "application/json",
-                    "{\"error\":\"internal error: " + escapeJson(t.getMessage()) + "\"}");
+                    "{\"error\":\"" + escapeJson(errorChain.toString()) + "\"}");
         }
     }
 
