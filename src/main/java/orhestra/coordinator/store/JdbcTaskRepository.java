@@ -485,7 +485,8 @@ public class JdbcTaskRepository implements TaskRepository {
             }
 
             conn.commit();
-            log.debug("Task {} completed by spot {} and job {} updated", taskId, spotId, jobId);
+            log.info("Task {} completed by spot {} and job {} counters committed in same transaction",
+                    taskId, spotId, jobId);
             return TaskCompleteResult.COMPLETED;
 
         } catch (SQLException e) {
@@ -496,6 +497,7 @@ public class JdbcTaskRepository implements TaskRepository {
     /**
      * Update job counters and status when a task completes.
      * Called within same transaction as task update.
+     * THROWS exception if job not found (should not happen in normal operation).
      */
     private void updateJobOnTaskComplete(Connection conn, String jobId, Timestamp now) throws SQLException {
         // Increment completed_tasks and update status in one statement
@@ -518,7 +520,16 @@ public class JdbcTaskRepository implements TaskRepository {
             ps.setTimestamp(1, now);
             ps.setTimestamp(2, now);
             ps.setString(3, jobId);
-            ps.executeUpdate();
+            int rowsUpdated = ps.executeUpdate();
+
+            if (rowsUpdated != 1) {
+                log.error("CRITICAL: updateJobOnTaskComplete updated {} rows for job {} (expected 1)",
+                        rowsUpdated, jobId);
+                throw new SQLException(
+                        "Job update failed: job " + jobId + " not found, updated " + rowsUpdated + " rows");
+            }
+
+            log.info("Job {} incremented completed_tasks (same transaction)", jobId);
         }
     }
 
@@ -610,6 +621,7 @@ public class JdbcTaskRepository implements TaskRepository {
     /**
      * Update job counters and status when a task permanently fails.
      * Called within same transaction as task update.
+     * THROWS exception if job not found (should not happen in normal operation).
      */
     private void updateJobOnTaskFail(Connection conn, String jobId, Timestamp now) throws SQLException {
         String sql = """
@@ -631,7 +643,16 @@ public class JdbcTaskRepository implements TaskRepository {
             ps.setTimestamp(1, now);
             ps.setTimestamp(2, now);
             ps.setString(3, jobId);
-            ps.executeUpdate();
+            int rowsUpdated = ps.executeUpdate();
+
+            if (rowsUpdated != 1) {
+                log.error("CRITICAL: updateJobOnTaskFail updated {} rows for job {} (expected 1)",
+                        rowsUpdated, jobId);
+                throw new SQLException(
+                        "Job update failed: job " + jobId + " not found, updated " + rowsUpdated + " rows");
+            }
+
+            log.info("Job {} incremented failed_tasks (same transaction)", jobId);
         }
     }
 
