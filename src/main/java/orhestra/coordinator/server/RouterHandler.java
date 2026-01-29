@@ -2,6 +2,7 @@ package orhestra.coordinator.server;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
@@ -36,9 +37,15 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 public class RouterHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
     private static final Logger log = LoggerFactory.getLogger(RouterHandler.class);
+
+    /**
+     * Shared JSON ObjectMapper configured for:
+     * - Java 8 date/time types (Instant, LocalDate, etc.) as ISO strings
+     * - NOT as numeric timestamps
+     */
     private static final ObjectMapper MAPPER = new ObjectMapper()
-            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-            .findAndRegisterModules();
+            .registerModule(new JavaTimeModule())
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
     private final List<Controller> controllers = new ArrayList<>();
     private final CoordinatorConfig config;

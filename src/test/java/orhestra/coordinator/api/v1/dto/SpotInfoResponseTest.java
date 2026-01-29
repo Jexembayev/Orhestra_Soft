@@ -124,4 +124,30 @@ class SpotInfoResponseTest {
         SpotInfoResponse response = SpotInfoResponse.from(spot);
         assertEquals("DOWN", response.status());
     }
+
+    @Test
+    void serialization_withInstantLastHeartbeat_producesIsoString() throws Exception {
+        // Create a spot with a specific Instant
+        Instant testTime = Instant.parse("2024-01-15T10:30:00Z");
+        Spot spot = Spot.builder()
+                .id("spot-serialization")
+                .ipAddress("192.168.1.1")
+                .cpuLoad(50.0)
+                .runningTasks(2)
+                .totalCores(4)
+                .status(SpotStatus.UP)
+                .lastHeartbeat(testTime)
+                .build();
+
+        SpotInfoResponse response = SpotInfoResponse.from(spot);
+
+        // Serialize using the same mapper as RouterHandler
+        String json = orhestra.coordinator.server.RouterHandler.mapper().writeValueAsString(response);
+
+        // Verify it contains ISO format date string, not numeric timestamp
+        assertTrue(json.contains("\"lastHeartbeat\":\"2024-01-15T10:30:00Z\""),
+                "Expected ISO string format, got: " + json);
+        assertFalse(json.contains("1705314600"),
+                "Should NOT contain numeric timestamp");
+    }
 }
