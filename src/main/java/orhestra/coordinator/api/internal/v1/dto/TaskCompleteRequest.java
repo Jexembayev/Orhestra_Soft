@@ -1,12 +1,16 @@
 package orhestra.coordinator.api.internal.v1.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Request DTO for completing a task.
  * POST /internal/v1/tasks/{taskId}/complete
+ * 
+ * Ignores unknown fields to allow agent version evolution.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record TaskCompleteRequest(
         @JsonProperty("spotId") String spotId,
         @JsonProperty("runtimeMs") long runtimeMs,

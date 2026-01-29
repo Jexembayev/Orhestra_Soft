@@ -1,11 +1,15 @@
 package orhestra.coordinator.api.internal.v1.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request DTO for claiming tasks.
  * POST /internal/v1/tasks/claim
+ * 
+ * Ignores unknown fields to allow agent version evolution.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ClaimTasksRequest(
         @JsonProperty("spotId") String spotId,
         @JsonProperty("maxTasks") int maxTasks) {

@@ -55,6 +55,8 @@ public class TaskController implements Controller {
 
     @Override
     public ControllerResponse handle(ChannelHandlerContext ctx, FullHttpRequest req, String path) {
+        // Let exceptions bubble to RouterHandler which exposes full error details
+        // Only catch validation errors to return proper 400 responses
         try {
             if (CLAIM_PATTERN.matcher(path).matches()) {
                 return handleClaim(req);
@@ -77,8 +79,8 @@ public class TaskController implements Controller {
         } catch (IllegalArgumentException e) {
             return ControllerResponse.badRequest(e.getMessage());
         } catch (Exception e) {
-            log.error("Task controller error", e);
-            return ControllerResponse.error("internal error");
+            // Rethrow as RuntimeException so RouterHandler can expose error details
+            throw new RuntimeException("Task controller error: " + e.getMessage(), e);
         }
     }
 

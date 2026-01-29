@@ -1,11 +1,15 @@
 package orhestra.coordinator.api.internal.v1.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request DTO for reporting task failure.
  * POST /internal/v1/tasks/{taskId}/fail
+ * 
+ * Ignores unknown fields to allow agent version evolution.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record TaskFailRequest(
         @JsonProperty("spotId") String spotId,
         @JsonProperty("error") String error,
