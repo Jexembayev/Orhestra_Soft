@@ -29,11 +29,34 @@
         </VBox>
     </HBox>
 
-    <!-- Actions -->
-    <HBox spacing="8" alignment="CENTER_LEFT">
-        <Button text="Загрузить JSON" onAction="#onAddJsonFile" styleClass="btn-primary"/>
-        <Button text="Обновить" onAction="#refreshTasks"/>
-    </HBox>
+    <!-- Recent JSON files -->
+    <TitledPane text="Файлы задач (JSON)" expanded="true" collapsible="false" styleClass="section-pane">
+        <content>
+            <VBox spacing="8">
+                <padding><Insets top="6" right="8" bottom="6" left="8"/></padding>
+
+                <!-- Row 1: ComboBox + Remove/Clear -->
+                <HBox spacing="6" alignment="CENTER_LEFT">
+                    <ComboBox fx:id="recentJsonCombo" promptText="Выберите из недавних…"
+                              HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308"/>
+                    <Button text="✕" onAction="#handleRemoveJson" styleClass="btn-icon">
+                        <tooltip><Tooltip text="Удалить из списка"/></tooltip>
+                    </Button>
+                    <Button text="🗑" onAction="#handleClearJson" styleClass="btn-icon">
+                        <tooltip><Tooltip text="Очистить список"/></tooltip>
+                    </Button>
+                </HBox>
+
+                <!-- Row 2: Choose + Load + Refresh -->
+                <HBox spacing="8">
+                    <Button text="📂 Выбрать JSON…" onAction="#onAddJsonFile"/>
+                    <Button text="Загрузить выбранный" onAction="#handleLoadSelectedJson" styleClass="btn-primary"/>
+                    <Region HBox.hgrow="ALWAYS"/>
+                    <Button text="Обновить таблицу" onAction="#refreshTasks"/>
+                </HBox>
+            </VBox>
+        </content>
+    </TitledPane>
 
     <!-- Table -->
     <TableView fx:id="taskTable" VBox.vgrow="ALWAYS">

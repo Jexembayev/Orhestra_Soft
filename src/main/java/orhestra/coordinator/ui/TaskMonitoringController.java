@@ -28,6 +28,10 @@ public class TaskMonitoringController {
 
     @FXML
     private Label lblNew, lblRunning, lblDone, lblFailed;
+    @FXML
+    private ComboBox<String> recentJsonCombo;
+
+    private final RecentJsonManager recentJson = new RecentJsonManager();
 
     @FXML
     private void initialize() {
@@ -77,6 +81,34 @@ public class TaskMonitoringController {
 
         // авто-обновление от координатора
         AppBus.onTasksChanged(() -> Platform.runLater(this::refreshTasks));
+
+        // ---- Recent JSON ComboBox ----
+        if (recentJsonCombo != null) {
+            // Show only filename in dropdown, but store full path as value
+            recentJsonCombo.setCellFactory(lv -> new ListCell<>() {
+                @Override
+                protected void updateItem(String path, boolean empty) {
+                    super.updateItem(path, empty);
+                    setText(empty || path == null ? null : RecentJsonManager.displayName(path));
+                }
+            });
+            recentJsonCombo.setButtonCell(new ListCell<>() {
+                @Override
+                protected void updateItem(String path, boolean empty) {
+                    super.updateItem(path, empty);
+                    setText(empty || path == null ? null : RecentJsonManager.displayName(path));
+                }
+            });
+            refreshJsonCombo();
+        }
+
+        // Auto-restore last JSON path
+        String lastJson = recentJson.getLast();
+        if (lastJson != null && recentJsonCombo != null) {
+            if (new File(lastJson).isFile()) {
+                recentJsonCombo.setValue(lastJson);
+            }
+        }
 
         refreshTasks();
     }
@@ -186,10 +218,74 @@ public class TaskMonitoringController {
         FileChooser fc = new FileChooser();
         fc.setTitle("Выберите JSON с задачами");
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files", "*.json"));
+
+        // Start in directory of last selected file
+        String currentVal = recentJsonCombo != null ? recentJsonCombo.getValue() : null;
+        if (currentVal != null) {
+            File dir = new File(currentVal).getParentFile();
+            if (dir != null && dir.isDirectory())
+                fc.setInitialDirectory(dir);
+        }
+
         File f = fc.showOpenDialog(taskTable.getScene().getWindow());
         if (f == null)
             return;
 
+        // Save to recent list
+        recentJson.addPath(f.getAbsolutePath());
+        refreshJsonCombo();
+        if (recentJsonCombo != null)
+            recentJsonCombo.setValue(f.getAbsolutePath());
+
+        // Immediately load
+        loadJsonFile(f);
+    }
+
+    @FXML
+    private void handleLoadSelectedJson() {
+        if (recentJsonCombo == null)
+            return;
+        String selected = recentJsonCombo.getValue();
+        if (selected == null || selected.isBlank()) {
+            new Alert(Alert.AlertType.WARNING, "Выберите JSON файл из списка или нажмите \"Выбрать JSON…\"",
+                    ButtonType.OK).showAndWait();
+            return;
+        }
+        File f = new File(selected);
+        if (!f.isFile()) {
+            new Alert(Alert.AlertType.WARNING, "Файл не найден: " + selected, ButtonType.OK).showAndWait();
+            recentJson.removePath(selected);
+            refreshJsonCombo();
+            return;
+        }
+        loadJsonFile(f);
+    }
+
+    @FXML
+    private void handleRemoveJson() {
+        if (recentJsonCombo == null)
+            return;
+        String selected = recentJsonCombo.getValue();
+        if (selected != null) {
+            recentJson.removePath(selected);
+            refreshJsonCombo();
+        }
+    }
+
+    @FXML
+    private void handleClearJson() {
+        recentJson.clearAll();
+        refreshJsonCombo();
+    }
+
+    private void refreshJsonCombo() {
+        if (recentJsonCombo == null)
+            return;
+        recentJsonCombo.getItems().setAll(recentJson.getRecent());
+    }
+
+    /** Core loading logic — extracted from former onAddJsonFile. */
+    private void loadJsonFile(File f) {
         try {
             String txt = java.nio.file.Files.readString(f.toPath());
             com.fasterxml.jackson.databind.ObjectMapper M = new com.fasterxml.jackson.databind.ObjectMapper();
@@ -253,6 +349,10 @@ public class TaskMonitoringController {
             if (!tasksToCreate.isEmpty()) {
                 deps.taskService().createTasks(tasksToCreate);
             }
+
+            // Save to recent on success
+            recentJson.addPath(f.getAbsolutePath());
+            refreshJsonCombo();
 
             AppBus.fireTasksChanged();
             refreshTasks();
