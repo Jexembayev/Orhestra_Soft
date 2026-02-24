@@ -17,6 +17,29 @@
         </VBox>
     </HBox>
 
+    <!-- Simulation controls -->
+    <TitledPane text="Simulation" expanded="false" animated="true">
+        <VBox spacing="8">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+            <HBox spacing="12" alignment="CENTER_LEFT">
+                <Label text="Workers:" prefWidth="80"/>
+                <Spinner fx:id="simWorkers" prefWidth="90" editable="true"/>
+                <Label text="Delay ms:" prefWidth="70"/>
+                <TextField fx:id="simDelayMin" prefWidth="60" promptText="200"/>
+                <Label text="—"/>
+                <TextField fx:id="simDelayMax" prefWidth="60" promptText="1200"/>
+                <Label text="Fail rate:" prefWidth="65"/>
+                <TextField fx:id="simFailRate" prefWidth="55" promptText="0.0"/>
+            </HBox>
+            <HBox spacing="8">
+                <Button fx:id="btnStartSim" text="▶ Start simulation" onAction="#handleStartSim"
+                        styleClass="btn-primary"/>
+                <Button fx:id="btnStopSim" text="■ Stop simulation" onAction="#handleStopSim"
+                        styleClass="btn-danger" disable="true"/>
+            </HBox>
+        </VBox>
+    </TitledPane>
+
     <!-- Table -->
     <TableView fx:id="table" VBox.vgrow="ALWAYS">
         <placeholder>

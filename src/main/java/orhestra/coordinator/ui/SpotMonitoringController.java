@@ -15,6 +15,7 @@ import orhestra.coordinator.config.Dependencies;
 import orhestra.coordinator.core.AppBus;
 import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.server.CoordinatorNettyServer;
+import orhestra.coordinator.simulation.SimulationService;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -43,10 +44,19 @@ public class SpotMonitoringController {
     @FXML
     private Label lblTotal;
 
+    // Simulation controls
+    @FXML
+    private Spinner<Integer> simWorkers;
+    @FXML
+    private TextField simDelayMin, simDelayMax, simFailRate;
+    @FXML
+    private Button btnStartSim, btnStopSim;
+
     private final ObservableList<SpotInfo> data = FXCollections.observableArrayList();
     private static final PseudoClass DOWN = PseudoClass.getPseudoClass("down");
 
     private Timer retryTimer;
+    private SimulationService simulationService;
 
     @FXML
     private void initialize() {
@@ -152,6 +162,12 @@ public class SpotMonitoringController {
         // Счётчик всего — биндим один раз
         lblTotal.textProperty().bind(Bindings.size(data).asString());
 
+        // Simulation Spinner init
+        if (simWorkers != null) {
+            simWorkers.setValueFactory(
+                    new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 200, 20));
+        }
+
         // Первичное заполнение - resilient to server not started
         refreshSpots();
     }
@@ -214,5 +230,61 @@ public class SpotMonitoringController {
                 spot.lastHeartbeat(),
                 spot.totalCores(),
                 spot.ipAddress());
+    }
+
+    // ---- Simulation handlers ----
+
+    @FXML
+    private void handleStartSim() {
+        Dependencies deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null) {
+            new Alert(Alert.AlertType.WARNING, "Server not started", ButtonType.OK).showAndWait();
+            return;
+        }
+
+        int workers = simWorkers != null ? simWorkers.getValue() : 20;
+        int delayMin = parseIntOr(simDelayMin, 200);
+        int delayMax = parseIntOr(simDelayMax, 1200);
+        double failRate = parseDoubleOr(simFailRate, 0.0);
+
+        simulationService = new SimulationService(deps.spotService(), deps.taskService());
+        simulationService.start(workers, delayMin, delayMax, failRate);
+
+        if (btnStartSim != null)
+            btnStartSim.setDisable(true);
+        if (btnStopSim != null)
+            btnStopSim.setDisable(false);
+    }
+
+    @FXML
+    private void handleStopSim() {
+        if (simulationService != null) {
+            simulationService.stop();
+            simulationService = null;
+        }
+        if (btnStartSim != null)
+            btnStartSim.setDisable(false);
+        if (btnStopSim != null)
+            btnStopSim.setDisable(true);
+    }
+
+    private static int parseIntOr(TextField tf, int fallback) {
+        if (tf == null || tf.getText() == null || tf.getText().isBlank())
+            return fallback;
+        try {
+            return Integer.parseInt(tf.getText().trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static double parseDoubleOr(TextField tf, double fallback) {
+        if (tf == null || tf.getText() == null || tf.getText().isBlank())
+            return fallback;
+        try {
+            return Double.parseDouble(tf.getText().trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }
