@@ -8,7 +8,7 @@ import javafx.stage.FileChooser;
 import orhestra.cloud.auth.AuthService;
 import orhestra.cloud.config.CloudConfig;
 import orhestra.cloud.config.IniLoader;
-import orhestra.cloud.creator.VMCreator;              // <-- используем VMCreator
+import orhestra.cloud.creator.VMCreator;
 import orhestra.coordinator.model.CloudInstanceRow;
 import orhestra.coordinator.model.EnvState;
 import orhestra.coordinator.service.CloudProbe;
@@ -29,46 +29,68 @@ import java.util.List;
 public class CloudController {
 
     // -------- FXML --------
-    @FXML private TextField iniPathField;
-    @FXML private Label statusLabel;
+    @FXML
+    private TextField iniPathField;
+    @FXML
+    private Label statusLabel;
+    @FXML
+    private ComboBox<String> recentIniCombo;
 
-    @FXML private Label dotVpn, dotCloud, dotOvpn, dotCoord;
-    @FXML private Button btnOvpnOn, btnOvpnOff;
-    @FXML private Button btnCheckVpn;
-    @FXML private Button btnCheckCloud;
-    @FXML private Button btnStartCoordinator;
-    @FXML private Button btnStopCoordinator;
-    @FXML private Button btnCreateSpot;
-    @FXML private TextArea coordLogArea;
+    @FXML
+    private Label dotVpn, dotCloud, dotOvpn, dotCoord;
+    @FXML
+    private Button btnOvpnOn, btnOvpnOff;
+    @FXML
+    private Button btnCheckVpn;
+    @FXML
+    private Button btnCheckCloud;
+    @FXML
+    private Button btnStartCoordinator;
+    @FXML
+    private Button btnStopCoordinator;
+    @FXML
+    private Button btnCreateSpot;
+    @FXML
+    private TextArea coordLogArea;
 
-    @FXML private TableView<CloudInstanceRow> instancesTable;
-    @FXML private TableColumn<CloudInstanceRow, String> colId;
-    @FXML private TableColumn<CloudInstanceRow, String> colName;
-    @FXML private TableColumn<CloudInstanceRow, String> colZone;
-    @FXML private TableColumn<CloudInstanceRow, String> colStatus;
-    @FXML private TableColumn<CloudInstanceRow, String> colIP;
-    @FXML private TableColumn<CloudInstanceRow, String> colCreated;
-    @FXML private TableColumn<CloudInstanceRow, String> colPreempt;
+    @FXML
+    private TableView<CloudInstanceRow> instancesTable;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colId;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colName;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colZone;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colStatus;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colIP;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colCreated;
+    @FXML
+    private TableColumn<CloudInstanceRow, String> colPreempt;
 
     // -------- Model/State --------
     private final ObservableList<CloudInstanceRow> data = FXCollections.observableArrayList();
     private final EnvState env = new EnvState();
 
-    private AuthService auth;       // лениво: токен из ENV OAUTH_TOKEN
-    private CloudConfig cfg;        // то, что считали из INI
+    private AuthService auth; // лениво: токен из ENV OAUTH_TOKEN
+    private CloudConfig cfg; // то, что считали из INI
 
     // services
     private final VpnProbe vpnProbe = new VpnProbe();
     private final CoordinatorService coordSvc = new CoordinatorService();
-    private CloudProbe cloudProbe;    // зависит от auth
-    private OvpnService ovpnSvc;      // зависит от auth + cfg
+    private final RecentIniManager recentIni = new RecentIniManager();
+    private CloudProbe cloudProbe; // зависит от auth
+    private OvpnService ovpnSvc; // зависит от auth + cfg
 
-    private static final DateTimeFormatter TS =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-                    .withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.systemDefault());
 
-    @FXML private void handleClearCoordLog() {
-        if (coordLogArea != null) coordLogArea.clear();
+    @FXML
+    private void handleClearCoordLog() {
+        if (coordLogArea != null)
+            coordLogArea.clear();
     }
 
     // =====================================================================
@@ -93,13 +115,39 @@ public class CloudController {
         env.anyProperty().addListener((o, a, b) -> updateButtons());
 
         // лог координатора в TextArea
-        coordSvc.setLogSink(s ->
-                javafx.application.Platform.runLater(() -> {
-                    if (coordLogArea != null) coordLogArea.appendText(s);
-                })
-        );
+        coordSvc.setLogSink(s -> javafx.application.Platform.runLater(() -> {
+            if (coordLogArea != null)
+                coordLogArea.appendText(s);
+        }));
 
-        setStatus("Load INI, OAuth from ENV: OAUTH_TOKEN");
+        // ---- Recent INI ----
+        refreshRecentCombo();
+
+        // ComboBox selection → update path field
+        if (recentIniCombo != null) {
+            recentIniCombo.setOnAction(e -> {
+                String selected = recentIniCombo.getValue();
+                if (selected != null && !selected.isBlank()) {
+                    iniPathField.setText(selected);
+                }
+            });
+        }
+
+        // Auto-restore last INI on startup
+        String lastPath = recentIni.getLast();
+        if (lastPath != null && new File(lastPath).isFile()) {
+            iniPathField.setText(lastPath);
+            if (recentIniCombo != null) {
+                recentIniCombo.setValue(lastPath);
+            }
+            setStatus("Последний конфиг: " + new File(lastPath).getName());
+        } else if (lastPath != null) {
+            // File no longer exists
+            setStatus("⚠ Последний INI не найден: " + lastPath);
+        } else {
+            setStatus("Загрузите INI-конфиг для начала работы");
+        }
+
         updateButtons();
     }
 
@@ -110,8 +158,23 @@ public class CloudController {
         FileChooser fc = new FileChooser();
         fc.setTitle("Выберите INI-файл");
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("INI files", "*.ini"));
+
+        // Start in directory of current path if available
+        String currentPath = iniPathField.getText();
+        if (currentPath != null && !currentPath.isBlank()) {
+            File dir = new File(currentPath).getParentFile();
+            if (dir != null && dir.isDirectory()) {
+                fc.setInitialDirectory(dir);
+            }
+        }
+
         File f = fc.showOpenDialog(instancesTable.getScene().getWindow());
-        if (f != null) iniPathField.setText(f.getAbsolutePath());
+        if (f != null) {
+            iniPathField.setText(f.getAbsolutePath());
+            if (recentIniCombo != null) {
+                recentIniCombo.setValue(f.getAbsolutePath());
+            }
+        }
     }
 
     @FXML
@@ -120,11 +183,19 @@ public class CloudController {
             var path = required(iniPathField.getText(), "INI path");
             var opt = IniLoader.load(new File(path));
             if (opt.isEmpty()) {
-                setStatus("INI parse error");
+                setStatus("❌ INI parse error");
                 return;
             }
             cfg = opt.get();
-            setStatus("INI loaded ✓");
+
+            // Save to recent list
+            recentIni.addPath(path);
+            refreshRecentCombo();
+            if (recentIniCombo != null) {
+                recentIniCombo.setValue(path);
+            }
+
+            setStatus("✅ INI загружен: " + new File(path).getName());
 
             // лениво создаём auth и сервисы, зависящие от него
             ensureAuth();
@@ -138,6 +209,34 @@ public class CloudController {
             setStatus("INI load error: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    @FXML
+    private void handleRemoveRecent() {
+        if (recentIniCombo == null)
+            return;
+        String selected = recentIniCombo.getValue();
+        if (selected != null) {
+            recentIni.removePath(selected);
+            refreshRecentCombo();
+            setStatus("Путь удалён из списка");
+        }
+    }
+
+    @FXML
+    private void handleClearRecent() {
+        recentIni.clearAll();
+        refreshRecentCombo();
+        iniPathField.clear();
+        setStatus("Список очищен");
+    }
+
+    /** Refresh the ComboBox from stored recent paths. */
+    private void refreshRecentCombo() {
+        if (recentIniCombo == null)
+            return;
+        List<String> recent = recentIni.getRecent();
+        recentIniCombo.getItems().setAll(recent);
     }
 
     // ==================== ПРОВЕРКИ ====================
@@ -164,8 +263,15 @@ public class CloudController {
     }
 
     // OpenVPN Access Server
-    @FXML private void handleOvpnOn()  { callOvpn(true); }
-    @FXML private void handleOvpnOff() { callOvpn(false); }
+    @FXML
+    private void handleOvpnOn() {
+        callOvpn(true);
+    }
+
+    @FXML
+    private void handleOvpnOff() {
+        callOvpn(false);
+    }
 
     private void callOvpn(boolean on) {
         try {
@@ -242,7 +348,7 @@ public class CloudController {
                 }
 
                 var creator = new VMCreator(auth);
-                creator.createMany(vmCfgOpt.get());  // внутри ждёт OperationUtils.wait(...)
+                creator.createMany(vmCfgOpt.get()); // внутри ждёт OperationUtils.wait(...)
 
                 updateStatusAsync("✅ SPOT-инстансы созданы");
                 javafx.application.Platform.runLater(this::handleListInstances);
@@ -279,11 +385,29 @@ public class CloudController {
     // ==================== HELPERS ====================
 
     private void ensureAuth() {
-        if (auth == null) auth = new AuthService(); // возьмёт токен из ENV: OAUTH_TOKEN
+        if (auth != null)
+            return;
+
+        // 1. Try saved token from Preferences
+        String savedToken = recentIni.getOauthToken();
+        if (savedToken != null && !savedToken.isBlank()) {
+            auth = new AuthService(savedToken);
+            return;
+        }
+
+        // 2. Fall back to ENV: OAUTH_TOKEN
+        String envToken = System.getenv("OAUTH_TOKEN");
+        auth = new AuthService(envToken);
+
+        // Save ENV token to Preferences for future restarts
+        if (envToken != null && !envToken.isBlank()) {
+            recentIni.setOauthToken(envToken);
+        }
     }
 
     private void ensureCfg() {
-        if (cfg == null) throw new IllegalStateException("INI not loaded");
+        if (cfg == null)
+            throw new IllegalStateException("INI not loaded");
     }
 
     private CloudInstanceRow toRow(InstanceOuterClass.Instance inst) {
@@ -301,33 +425,44 @@ public class CloudController {
         return CloudInstanceRow.of(id, name, zone, status, ip, created, spot);
     }
 
-    private void setStatus(String s) { statusLabel.setText(s); }
+    private void setStatus(String s) {
+        statusLabel.setText(s);
+    }
 
     private void updateButtons() {
         boolean iniOk = (cfg != null);
         // Создавать SPOT можно без VPN/координатора — лишь бы INI загружен и облако OK
         boolean enableCreate = iniOk && env.isCloud();
-        if (btnCreateSpot != null) btnCreateSpot.setDisable(!enableCreate);
+        if (btnCreateSpot != null)
+            btnCreateSpot.setDisable(!enableCreate);
 
         // Кнопки координатора
-        if (btnStopCoordinator != null) btnStopCoordinator.setDisable(!env.isCoord());
-        if (btnStartCoordinator != null) btnStartCoordinator.setDisable(env.isCoord());
+        if (btnStopCoordinator != null)
+            btnStopCoordinator.setDisable(!env.isCoord());
+        if (btnStartCoordinator != null)
+            btnStartCoordinator.setDisable(env.isCoord());
     }
 
     private static void colorize(Label dot, boolean ok) {
-        if (dot == null) return;
+        if (dot == null)
+            return;
         dot.setStyle("-fx-text-fill: " + (ok ? "#11aa11" : "#999999") + "; -fx-font-size: 16;");
     }
 
     private static String required(String v, String name) {
-        if (v == null || v.isBlank()) throw new IllegalArgumentException("Missing: " + name);
+        if (v == null || v.isBlank())
+            throw new IllegalArgumentException("Missing: " + name);
         return v;
     }
 
-    /** Базовый helper для фоновых задач с обновлением статуса и блокировкой кнопки Create SPOT. */
+    /**
+     * Базовый helper для фоновых задач с обновлением статуса и блокировкой кнопки
+     * Create SPOT.
+     */
     private void runAsync(String startMsg, Runnable job) {
         updateStatusAsync(startMsg);
-        if (btnCreateSpot != null) btnCreateSpot.setDisable(true);
+        if (btnCreateSpot != null)
+            btnCreateSpot.setDisable(true);
         new Thread(() -> {
             try {
                 job.run();
@@ -341,4 +476,3 @@ public class CloudController {
         javafx.application.Platform.runLater(() -> setStatus(msg));
     }
 }
-

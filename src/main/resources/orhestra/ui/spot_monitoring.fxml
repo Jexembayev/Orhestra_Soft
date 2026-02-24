@@ -1,18 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 
-<VBox spacing="8" xmlns:fx="http://javafx.com/fxml"
+<VBox spacing="12" xmlns:fx="http://javafx.com/fxml"
       fx:controller="orhestra.coordinator.ui.SpotMonitoringController"
-      stylesheets="@spots.css" styleClass="pad">
+      styleClass="pad">
 
-    <HBox spacing="8">
-        <Label text="Spots" styleClass="title"/>
-        <Label fx:id="lblTotal" text="0" styleClass="muted"/>
+    <!-- Stats header -->
+    <HBox spacing="12" alignment="CENTER_LEFT" styleClass="stats-bar">
+        <Label text="SPOT Workers" styleClass="section-header"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblTotal" text="0" styleClass="stat-value"/>
+            <Label text="всего" styleClass="stat-label"/>
+        </VBox>
     </HBox>
 
-    <TableView fx:id="table" prefHeight="520" VBox.vgrow="ALWAYS">
+    <!-- Table -->
+    <TableView fx:id="table" VBox.vgrow="ALWAYS">
+        <placeholder>
+            <Label text="Нет подключённых SPOT-воркеров. Ожидание heartbeat…"
+                   styleClass="muted" style="-fx-font-size: 14;"/>
+        </placeholder>
         <columns>
             <TableColumn fx:id="colId"       text="ID"           prefWidth="120"/>
             <TableColumn fx:id="colAddr"     text="Address"      prefWidth="200"/>

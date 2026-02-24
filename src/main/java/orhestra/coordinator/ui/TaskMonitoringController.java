@@ -1,7 +1,6 @@
 package orhestra.coordinator.ui;
 
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
@@ -26,8 +25,9 @@ public class TaskMonitoringController {
     private TableColumn<TaskInfo, String> idColumn, algColumn, funcColumn, runtimeColumn, statusColumn, progressColumn;
     @FXML
     private TableColumn<TaskInfo, String> iterColumn;
+
     @FXML
-    private Label lblTotal;
+    private Label lblNew, lblRunning, lblDone, lblFailed;
 
     @FXML
     private void initialize() {
@@ -59,11 +59,12 @@ public class TaskMonitoringController {
                 Label badge = new Label(st);
                 badge.getStyleClass().add("status-badge");
                 switch (st) {
-                    case "DONE" -> badge.getStyleClass().add("status-up");
-                    case "FAILED" -> badge.getStyleClass().add("status-down");
-                    case "RUNNING" -> badge.getStyleClass().add("status-warn");
+                    case "DONE" -> badge.getStyleClass().add("status-done");
+                    case "FAILED" -> badge.getStyleClass().add("status-failed");
+                    case "RUNNING" -> badge.getStyleClass().add("status-running");
+                    case "NEW" -> badge.getStyleClass().add("status-new");
                     default -> {
-                        /* NEW/CANCELLED/etc */ }
+                        /* CANCELLED etc */ }
                 }
                 setGraphic(badge);
                 setText(null);
@@ -77,11 +78,6 @@ public class TaskMonitoringController {
         // авто-обновление от координатора
         AppBus.onTasksChanged(() -> Platform.runLater(this::refreshTasks));
 
-        // счётчик всего
-        if (lblTotal != null) {
-            lblTotal.textProperty().bind(Bindings.size(taskTable.getItems()).asString());
-        }
-
         refreshTasks();
     }
 
@@ -91,15 +87,11 @@ public class TaskMonitoringController {
     public void refreshTasks() {
         var deps = CoordinatorNettyServer.tryDependencies();
         if (deps == null) {
-            // Server not started yet - show placeholder and schedule retry
             taskTable.getItems().clear();
-            taskTable.getItems().add(new TaskInfo("—", "Server not started", "WAITING", null, null, null,
-                    "Waiting for server...", null, null, null));
             scheduleRetry();
             return;
         }
 
-        // Cancel any pending retry
         cancelRetryTimer();
 
         List<TaskInfo> items = deps
@@ -110,7 +102,23 @@ public class TaskMonitoringController {
                 .collect(Collectors.toList());
 
         taskTable.getItems().setAll(items);
+        updateStats(items);
         taskTable.refresh();
+    }
+
+    private void updateStats(List<TaskInfo> items) {
+        long nw = items.stream().filter(t -> "NEW".equals(t.status())).count();
+        long ru = items.stream().filter(t -> "RUNNING".equals(t.status())).count();
+        long dn = items.stream().filter(t -> "DONE".equals(t.status())).count();
+        long fl = items.stream().filter(t -> "FAILED".equals(t.status())).count();
+        if (lblNew != null)
+            lblNew.setText(String.valueOf(nw));
+        if (lblRunning != null)
+            lblRunning.setText(String.valueOf(ru));
+        if (lblDone != null)
+            lblDone.setText(String.valueOf(dn));
+        if (lblFailed != null)
+            lblFailed.setText(String.valueOf(fl));
     }
 
     private void scheduleRetry() {

@@ -5,38 +5,45 @@
 
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="orhestra.coordinator.ui.VmCreatorController"
-      spacing="10.0">
+      spacing="12" styleClass="pad">
 
-    <!-- Внешние отступы всей вкладки -->
-    <padding>
-        <Insets topRightBottomLeft="12.0"/>
-    </padding>
-
-    <HBox spacing="10.0">
-        <Button text="Загрузить .ini файл конфигурации" onAction="#handleLoadIniFile"/>
-        <Button fx:id="createVmButton" text="Создать ВМ" onAction="#handleCreateVm" disable="true"/>
-        <Button fx:id="deleteAllButton" text="Удалить все ВМ" onAction="#handleDeleteAllVms"/>
-    </HBox>
-
-    <TextArea fx:id="logArea" prefRowCount="10" editable="false" wrapText="true"/>
-
-    <TitledPane text="Предпросмотр конфигурации" expanded="true">
+    <!-- Actions -->
+    <TitledPane text="Действия" expanded="true" collapsible="false" styleClass="section-pane">
         <content>
-            <VBox spacing="6.0">
-                <padding>
-                    <Insets topRightBottomLeft="10.0"/>
-                </padding>
-
-                <Label fx:id="vmCountLabel"/>
-                <Label fx:id="vmNameLabel"/>
-                <Label fx:id="imageIdLabel"/>
-                <Label fx:id="cpuLabel"/>
-                <Label fx:id="ramLabel"/>
-                <Label fx:id="diskLabel"/>
-                <Label fx:id="userLabel"/>
-                <Label fx:id="keyPathLabel"/>
+            <VBox spacing="10">
+                <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+                <HBox spacing="8">
+                    <Button text="📂 Загрузить INI" onAction="#handleLoadIniFile" styleClass="btn-primary"/>
+                    <Button fx:id="createVmButton" text="Создать ВМ" onAction="#handleCreateVm" disable="true"/>
+                    <Button fx:id="deleteAllButton" text="Удалить все ВМ" onAction="#handleDeleteAllVms"
+                            styleClass="btn-danger"/>
+                </HBox>
             </VBox>
         </content>
     </TitledPane>
-</VBox>
 
+    <!-- Config preview -->
+    <TitledPane text="Предпросмотр конфигурации" expanded="true" styleClass="section-pane">
+        <content>
+            <VBox spacing="6">
+                <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+                <Label fx:id="vmCountLabel" text="vm_count: —" styleClass="muted"/>
+                <Label fx:id="vmNameLabel"  text="vm_name_prefix: —" styleClass="muted"/>
+                <Label fx:id="imageIdLabel" text="image_id: —" styleClass="muted"/>
+                <Label fx:id="cpuLabel"     text="cpu: —" styleClass="muted"/>
+                <Label fx:id="ramLabel"     text="ram_gb: —" styleClass="muted"/>
+                <Label fx:id="diskLabel"    text="disk_gb: —" styleClass="muted"/>
+                <Label fx:id="userLabel"    text="user: —" styleClass="muted"/>
+                <Label fx:id="keyPathLabel" text="ssh_key: —" styleClass="muted"/>
+            </VBox>
+        </content>
+    </TitledPane>
+
+    <!-- Log -->
+    <TitledPane text="Лог" expanded="false" styleClass="section-pane" VBox.vgrow="ALWAYS">
+        <content>
+            <TextArea fx:id="logArea" prefRowCount="8" editable="false" wrapText="true"
+                      styleClass="log-area" promptText="Лог операций появится здесь…"/>
+        </content>
+    </TitledPane>
+</VBox>

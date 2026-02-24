@@ -9,41 +9,57 @@ import yandex.cloud.sdk.auth.Auth;
 import java.time.Duration;
 
 public class AuthService {
-    private final ServiceFactory factory;
-    private final OperationServiceGrpc.OperationServiceBlockingStub operationService;
-    private final InstanceServiceGrpc.InstanceServiceBlockingStub instanceService;
-    private final ImageServiceGrpc.ImageServiceBlockingStub imageService;
+        private final ServiceFactory factory;
+        private final OperationServiceGrpc.OperationServiceBlockingStub operationService;
+        private final InstanceServiceGrpc.InstanceServiceBlockingStub instanceService;
+        private final ImageServiceGrpc.ImageServiceBlockingStub imageService;
 
-    public AuthService() {
-        this.factory = buildFactory(); // см. метод ниже
+        /** Create using OAUTH_TOKEN from environment variable. */
+        public AuthService() {
+                this((String) null);
+        }
 
-        this.operationService = factory.create(
-                OperationServiceGrpc.OperationServiceBlockingStub.class,
-                OperationServiceGrpc::newBlockingStub
-        );
-        this.instanceService = factory.create(
-                InstanceServiceGrpc.InstanceServiceBlockingStub.class,
-                InstanceServiceGrpc::newBlockingStub
-        );
-        this.imageService = factory.create(
-                ImageServiceGrpc.ImageServiceBlockingStub.class,
-                ImageServiceGrpc::newBlockingStub
-        );
-    }
+        /** Create using explicit OAuth token (falls back to ENV if null). */
+        public AuthService(String oauthToken) {
+                this.factory = buildFactory(oauthToken);
 
-    private static ServiceFactory buildFactory() {
-        return ServiceFactory.builder()
-                // env var: OAUTH_TOKEN
-                .credentialProvider(Auth.oauthTokenBuilder().fromEnv("OAUTH_TOKEN"))
-                .requestTimeout(Duration.ofMinutes(1))
-                .build();
-    }
+                this.operationService = factory.create(
+                                OperationServiceGrpc.OperationServiceBlockingStub.class,
+                                OperationServiceGrpc::newBlockingStub);
+                this.instanceService = factory.create(
+                                InstanceServiceGrpc.InstanceServiceBlockingStub.class,
+                                InstanceServiceGrpc::newBlockingStub);
+                this.imageService = factory.create(
+                                ImageServiceGrpc.ImageServiceBlockingStub.class,
+                                ImageServiceGrpc::newBlockingStub);
+        }
 
-    public ServiceFactory getFactory() { return factory; }
-    public OperationServiceGrpc.OperationServiceBlockingStub getOperationService() { return operationService; }
-    public InstanceServiceGrpc.InstanceServiceBlockingStub getInstanceService() { return instanceService; }
-    public ImageServiceGrpc.ImageServiceBlockingStub getImageService() { return imageService; }
+        private static ServiceFactory buildFactory(String oauthToken) {
+                var builder = ServiceFactory.builder()
+                                .requestTimeout(Duration.ofMinutes(1));
+
+                if (oauthToken != null && !oauthToken.isBlank()) {
+                        builder.credentialProvider(Auth.oauthTokenBuilder().oauth(oauthToken).build());
+                } else {
+                        builder.credentialProvider(Auth.oauthTokenBuilder().fromEnv("OAUTH_TOKEN"));
+                }
+
+                return builder.build();
+        }
+
+        public ServiceFactory getFactory() {
+                return factory;
+        }
+
+        public OperationServiceGrpc.OperationServiceBlockingStub getOperationService() {
+                return operationService;
+        }
+
+        public InstanceServiceGrpc.InstanceServiceBlockingStub getInstanceService() {
+                return instanceService;
+        }
+
+        public ImageServiceGrpc.ImageServiceBlockingStub getImageService() {
+                return imageService;
+        }
 }
-
-
-

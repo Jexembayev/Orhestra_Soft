@@ -27,14 +27,8 @@ Orhestra — система для распределённого запуска
 ### Запуск координатора
 
 ```bash
-# Из корня проекта
-mvn compile exec:java -Dexec.mainClass="orhestra.coordinator.Main"
-```
-
-Или через JAR:
-```bash
-mvn package -DskipTests
-java -jar target/OrhestraV2-2.0-SNAPSHOT.jar
+# Из корня проекта (запускает координатор + JavaFX UI)
+mvn javafx:run
 ```
 
 Сервер стартует на `http://localhost:8080` (по умолчанию).

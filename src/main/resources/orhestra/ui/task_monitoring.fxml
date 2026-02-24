@@ -1,28 +1,54 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="orhestra.coordinator.ui.TaskMonitoringController"
-      spacing="10.0" styleClass="pad">
+      spacing="12" styleClass="pad">
 
-    <HBox spacing="10.0">
-        <Button text="Загрузить JSON" onAction="#onAddJsonFile"/>
-        <Button text="Обновить" onAction="#refreshTasks"/>
-        <Label text="Очередь / Статусы задач" styleClass="muted"/>
+    <!-- Stats header -->
+    <HBox spacing="16" alignment="CENTER_LEFT" styleClass="stats-bar">
+        <Label text="Задачи" styleClass="section-header"/>
         <Region HBox.hgrow="ALWAYS"/>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblNew" text="0" styleClass="stat-value"/>
+            <Label text="queued" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblRunning" text="0" styleClass="stat-value" style="-fx-text-fill: #e6a817;"/>
+            <Label text="running" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblDone" text="0" styleClass="stat-value" style="-fx-text-fill: #2e9e4f;"/>
+            <Label text="done" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblFailed" text="0" styleClass="stat-value" style="-fx-text-fill: #d64545;"/>
+            <Label text="failed" styleClass="stat-label"/>
+        </VBox>
     </HBox>
 
-    <TableView fx:id="taskTable" prefHeight="560" VBox.vgrow="ALWAYS">
+    <!-- Actions -->
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Button text="Загрузить JSON" onAction="#onAddJsonFile" styleClass="btn-primary"/>
+        <Button text="Обновить" onAction="#refreshTasks"/>
+    </HBox>
+
+    <!-- Table -->
+    <TableView fx:id="taskTable" VBox.vgrow="ALWAYS">
+        <placeholder>
+            <Label text="Задач пока нет. Загрузите JSON или дождитесь задач от координатора."
+                   styleClass="muted" style="-fx-font-size: 14;"/>
+        </placeholder>
         <columns>
             <TableColumn fx:id="idColumn"       text="ID"        prefWidth="160"/>
-            <TableColumn fx:id="algColumn"      text="Alg"       prefWidth="100"/>
-            <TableColumn fx:id="funcColumn"     text="Func"      prefWidth="120"/>
-            <TableColumn fx:id="iterColumn"     text="Iter"      prefWidth="80"/>
-            <TableColumn fx:id="runtimeColumn"  text="Runtime"   prefWidth="120"/>
-            <TableColumn fx:id="statusColumn"   text="Status"    prefWidth="120"/>
-            <TableColumn fx:id="progressColumn" text="Progress"  prefWidth="120"/>
+            <TableColumn fx:id="algColumn"      text="Алгоритм"  prefWidth="100"/>
+            <TableColumn fx:id="funcColumn"     text="Функция"   prefWidth="120"/>
+            <TableColumn fx:id="iterColumn"     text="Итерации"  prefWidth="80"/>
+            <TableColumn fx:id="runtimeColumn"  text="Время"     prefWidth="120"/>
+            <TableColumn fx:id="statusColumn"   text="Статус"    prefWidth="120"/>
+            <TableColumn fx:id="progressColumn" text="Прогресс"  prefWidth="120"/>
         </columns>
     </TableView>
 </VBox>
-

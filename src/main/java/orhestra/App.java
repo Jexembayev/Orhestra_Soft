@@ -61,6 +61,8 @@ public class App extends Application {
         Parent root = loader.load();
 
         Scene scene = new Scene(root, 1200, 750);
+        scene.getStylesheets().add(
+                Objects.requireNonNull(getClass().getResource("/orhestra/ui/theme.css")).toExternalForm());
         stage.setTitle("Orhestra • Control Panel");
         stage.setScene(scene);
         stage.show();
