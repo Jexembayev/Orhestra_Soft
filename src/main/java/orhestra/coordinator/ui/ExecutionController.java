@@ -3,14 +3,22 @@ package orhestra.coordinator.ui;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
+import orhestra.coordinator.config.Dependencies;
 import orhestra.coordinator.core.AppBus;
+import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.model.Task;
 import orhestra.coordinator.model.TaskStatus;
 import orhestra.coordinator.server.CoordinatorNettyServer;
+import orhestra.coordinator.simulation.SimulationService;
 
 import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
@@ -18,7 +26,13 @@ import java.util.TimerTask;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class TaskMonitoringController {
+/**
+ * Unified controller for the Execution tab.
+ * Top: SPOT worker cards. Bottom: Task table with progress/SpotId.
+ */
+public class ExecutionController {
+
+    // ---- Task table ----
     @FXML
     private TableView<TaskInfo> taskTable;
     @FXML
@@ -30,43 +44,59 @@ public class TaskMonitoringController {
     @FXML
     private TableColumn<TaskInfo, String> spotIdColumn;
 
+    // ---- Stats ----
     @FXML
     private Label lblNew, lblRunning, lblDone, lblFailed;
+
+    // ---- Spot cards ----
+    @FXML
+    private FlowPane spotCards;
+    @FXML
+    private Label lblSpotCount;
+
+    // ---- Simulation ----
+    @FXML
+    private Spinner<Integer> simWorkers;
+    @FXML
+    private TextField simDelayMin, simDelayMax, simFailRate;
+    @FXML
+    private Button btnStartSim, btnStopSim;
+
+    // ---- JSON files ----
     @FXML
     private ComboBox<String> recentJsonCombo;
 
+    private Timer retryTimer;
+    private SimulationService simulationService;
     private final RecentJsonManager recentJson = new RecentJsonManager();
 
     @FXML
     private void initialize() {
-        // ID / ALG
+        // ---- Task table columns ----
         idColumn.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().id()));
         algColumn.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().algId() != null ? c.getValue().algId() : "—"));
-
-        // FUNC (достанем из payload, если есть "func" в json; иначе "—")
         funcColumn.setCellValueFactory(c -> new SimpleStringProperty(extractFunc(c.getValue().payload())));
 
-        // ITER (input iterations, not result iter)
         iterColumn.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().inputIterations() == null ? "—" : String.valueOf(c.getValue().inputIterations())));
 
-        // AGENTS
         if (agentsColumn != null) {
             agentsColumn.setCellValueFactory(c -> new SimpleStringProperty(
                     c.getValue().inputAgents() == null ? "—" : String.valueOf(c.getValue().inputAgents())));
         }
-
-        // DIMENSION
         if (dimensionColumn != null) {
             dimensionColumn.setCellValueFactory(c -> new SimpleStringProperty(
                     c.getValue().inputDimension() == null ? "—" : String.valueOf(c.getValue().inputDimension())));
         }
+        if (spotIdColumn != null) {
+            spotIdColumn.setCellValueFactory(c -> new SimpleStringProperty(
+                    c.getValue().assignedTo() == null ? "—" : c.getValue().assignedTo()));
+        }
 
-        // RUNTIME
         runtimeColumn.setCellValueFactory(c -> new SimpleStringProperty(formatRuntime(c.getValue().runtimeMs())));
 
-        // STATUS (бейдж)
+        // Status badge
         statusColumn.setCellValueFactory(c -> new SimpleStringProperty(nz(c.getValue().status())));
         statusColumn.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -85,58 +115,59 @@ public class TaskMonitoringController {
                     case "RUNNING" -> badge.getStyleClass().add("status-running");
                     case "NEW" -> badge.getStyleClass().add("status-new");
                     default -> {
-                        /* CANCELLED etc */ }
+                    }
                 }
                 setGraphic(badge);
                 setText(null);
             }
         });
 
-        // PROGRESS (status-aware: DONE→100%, FAILED→"—")
+        // Progress (status-aware)
         progressColumn.setCellValueFactory(c -> new SimpleStringProperty(
                 calcProgress(c.getValue().status(), c.getValue().payload(), c.getValue().iter())));
 
-        // SPOT ID
-        if (spotIdColumn != null) {
-            spotIdColumn.setCellValueFactory(c -> new SimpleStringProperty(
-                    c.getValue().assignedTo() == null ? "—" : c.getValue().assignedTo()));
+        // ---- Simulation spinner ----
+        if (simWorkers != null) {
+            simWorkers.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 200, 20));
         }
-
-        // авто-обновление от координатора
-        AppBus.onTasksChanged(() -> Platform.runLater(this::refreshTasks));
 
         // ---- Recent JSON ComboBox ----
         if (recentJsonCombo != null) {
-            // Show only filename in dropdown, but store full path as value
             recentJsonCombo.setCellFactory(lv -> new ListCell<>() {
                 @Override
-                protected void updateItem(String path, boolean empty) {
-                    super.updateItem(path, empty);
-                    setText(empty || path == null ? null : RecentJsonManager.displayName(path));
+                protected void updateItem(String p, boolean empty) {
+                    super.updateItem(p, empty);
+                    setText(empty || p == null ? null : RecentJsonManager.displayName(p));
                 }
             });
             recentJsonCombo.setButtonCell(new ListCell<>() {
                 @Override
-                protected void updateItem(String path, boolean empty) {
-                    super.updateItem(path, empty);
-                    setText(empty || path == null ? null : RecentJsonManager.displayName(path));
+                protected void updateItem(String p, boolean empty) {
+                    super.updateItem(p, empty);
+                    setText(empty || p == null ? null : RecentJsonManager.displayName(p));
                 }
             });
             refreshJsonCombo();
-        }
-
-        // Auto-restore last JSON path
-        String lastJson = recentJson.getLast();
-        if (lastJson != null && recentJsonCombo != null) {
-            if (new File(lastJson).isFile()) {
+            String lastJson = recentJson.getLast();
+            if (lastJson != null && new File(lastJson).isFile()) {
                 recentJsonCombo.setValue(lastJson);
             }
         }
 
-        refreshTasks();
+        // ---- Event listeners ----
+        AppBus.onTasksChanged(() -> Platform.runLater(this::refreshTasks));
+        AppBus.onSpotsChanged(() -> Platform.runLater(this::refreshSpots));
+
+        // Initial load
+        refreshAll();
     }
 
-    private Timer retryTimer;
+    // ================== Refresh ==================
+
+    private void refreshAll() {
+        refreshTasks();
+        refreshSpots();
+    }
 
     @FXML
     public void refreshTasks() {
@@ -146,20 +177,77 @@ public class TaskMonitoringController {
             scheduleRetry();
             return;
         }
-
         cancelRetryTimer();
 
-        List<TaskInfo> items = deps
-                .taskService()
-                .findRecent(200)
-                .stream()
-                .map(this::toTaskInfo)
-                .collect(Collectors.toList());
+        List<TaskInfo> items = deps.taskService().findRecent(200)
+                .stream().map(this::toTaskInfo).collect(Collectors.toList());
 
         taskTable.getItems().setAll(items);
         updateStats(items);
         taskTable.refresh();
     }
+
+    private void refreshSpots() {
+        Dependencies deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null)
+            return;
+
+        List<Spot> spots = deps.spotService().findAll();
+
+        if (spotCards != null) {
+            spotCards.getChildren().clear();
+            for (Spot spot : spots) {
+                spotCards.getChildren().add(buildSpotCard(spot));
+            }
+        }
+        if (lblSpotCount != null) {
+            lblSpotCount.setText("Spots: " + spots.size());
+        }
+    }
+
+    // ================== Spot Cards ==================
+
+    private VBox buildSpotCard(Spot spot) {
+        VBox card = new VBox(3);
+        card.setPadding(new Insets(8));
+        card.setPrefWidth(130);
+        card.setAlignment(Pos.TOP_LEFT);
+        card.getStyleClass().add("spot-card");
+
+        String status = spot.status() != null ? spot.status().name() : "DOWN";
+        boolean isUp = "UP".equals(status);
+
+        // Check if stale (>5s since last heartbeat)
+        long age = spot.lastHeartbeat() == null ? Long.MAX_VALUE
+                : Math.max(0, Duration.between(spot.lastHeartbeat(), Instant.now()).getSeconds());
+        if (age > 5)
+            isUp = false;
+
+        if (isUp)
+            card.getStyleClass().add("spot-card-up");
+        else
+            card.getStyleClass().add("spot-card-down");
+
+        Label idLabel = new Label(spot.id());
+        idLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12;");
+
+        double cpu = spot.cpuLoad();
+        int tasks = spot.runningTasks();
+
+        Label cpuLabel = new Label(String.format("CPU: %.0f%%", cpu));
+        cpuLabel.setStyle("-fx-font-size: 11;");
+
+        Label tasksLabel = new Label("Tasks: " + tasks);
+        tasksLabel.setStyle("-fx-font-size: 11;");
+
+        Label beatLabel = new Label(age == Long.MAX_VALUE ? "—" : age + "s ago");
+        beatLabel.setStyle("-fx-font-size: 10; -fx-text-fill: #888;");
+
+        card.getChildren().addAll(idLabel, cpuLabel, tasksLabel, beatLabel);
+        return card;
+    }
+
+    // ================== Stats ==================
 
     private void updateStats(List<TaskInfo> items) {
         long nw = items.stream().filter(t -> "NEW".equals(t.status())).count();
@@ -176,99 +264,77 @@ public class TaskMonitoringController {
             lblFailed.setText(String.valueOf(fl));
     }
 
-    private void scheduleRetry() {
-        if (retryTimer != null)
-            return; // Already scheduled
+    // ================== Task model mapping ==================
 
-        retryTimer = new Timer("task-monitor-retry", true);
-        retryTimer.schedule(new TimerTask() {
-            @Override
-            public void run() {
-                Platform.runLater(() -> {
-                    retryTimer = null;
-                    refreshTasks();
-                });
-            }
-        }, 2000); // Retry after 2 seconds
-    }
-
-    private void cancelRetryTimer() {
-        if (retryTimer != null) {
-            retryTimer.cancel();
-            retryTimer = null;
-        }
-    }
-
-    /**
-     * Convert Task model to TaskInfo for UI display.
-     */
     private TaskInfo toTaskInfo(Task task) {
-        // Prefer first-class Task.algorithm(); fall back to payload extraction
         String algDisplay = task.algorithm();
-        if (algDisplay == null || algDisplay.isBlank()) {
+        if (algDisplay == null || algDisplay.isBlank())
             algDisplay = extractAlg(task.payload());
-        }
         return new TaskInfo(
-                task.id(),
-                algDisplay,
+                task.id(), algDisplay,
                 task.status() != null ? task.status().name() : "NEW",
-                task.iter(),
-                task.runtimeMs(),
-                task.fopt(),
-                task.payload(),
-                task.assignedTo(),
-                task.startedAt(),
-                task.finishedAt(),
-                task.inputIterations(),
-                task.inputAgents(),
-                task.inputDimension());
+                task.iter(), task.runtimeMs(), task.fopt(),
+                task.payload(), task.assignedTo(),
+                task.startedAt(), task.finishedAt(),
+                task.inputIterations(), task.inputAgents(), task.inputDimension());
     }
 
-    /**
-     * Extract "alg" field from payload JSON.
-     */
-    private static String extractAlg(String payloadJson) {
-        if (payloadJson == null || payloadJson.isBlank())
-            return "—";
-        try {
-            int i = payloadJson.indexOf("\"alg\"");
-            if (i < 0)
-                return "—";
-            int c = payloadJson.indexOf(':', i);
-            int q1 = payloadJson.indexOf('"', c);
-            int q2 = payloadJson.indexOf('"', q1 + 1);
-            if (q1 > 0 && q2 > q1)
-                return payloadJson.substring(q1 + 1, q2);
-        } catch (Exception ignore) {
+    // ================== Simulation ==================
+
+    @FXML
+    private void handleStartSim() {
+        Dependencies deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null) {
+            new Alert(Alert.AlertType.WARNING, "Server not started", ButtonType.OK).showAndWait();
+            return;
         }
-        return "—";
+        int workers = simWorkers != null ? simWorkers.getValue() : 20;
+        int delayMin = parseIntOr(simDelayMin, 200);
+        int delayMax = parseIntOr(simDelayMax, 1200);
+        double failRate = parseDoubleOr(simFailRate, 0.0);
+
+        simulationService = new SimulationService(deps.spotService(), deps.taskService());
+        simulationService.start(workers, delayMin, delayMax, failRate);
+
+        if (btnStartSim != null)
+            btnStartSim.setDisable(true);
+        if (btnStopSim != null)
+            btnStopSim.setDisable(false);
     }
+
+    @FXML
+    private void handleStopSim() {
+        if (simulationService != null) {
+            simulationService.stop();
+            simulationService = null;
+        }
+        if (btnStartSim != null)
+            btnStartSim.setDisable(false);
+        if (btnStopSim != null)
+            btnStopSim.setDisable(true);
+    }
+
+    // ================== JSON file handling ==================
 
     @FXML
     private void onAddJsonFile() {
         FileChooser fc = new FileChooser();
         fc.setTitle("Выберите JSON с задачами");
         fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("JSON files", "*.json"));
-
-        // Start in directory of last selected file
         String currentVal = recentJsonCombo != null ? recentJsonCombo.getValue() : null;
         if (currentVal != null) {
             File dir = new File(currentVal).getParentFile();
             if (dir != null && dir.isDirectory())
                 fc.setInitialDirectory(dir);
         }
-
         File f = fc.showOpenDialog(taskTable.getScene().getWindow());
         if (f == null)
             return;
 
-        // Save to recent list
         recentJson.addPath(f.getAbsolutePath());
         refreshJsonCombo();
         if (recentJsonCombo != null)
             recentJsonCombo.setValue(f.getAbsolutePath());
-
-        // Immediately load
         loadJsonFile(f);
     }
 
@@ -278,8 +344,7 @@ public class TaskMonitoringController {
             return;
         String selected = recentJsonCombo.getValue();
         if (selected == null || selected.isBlank()) {
-            new Alert(Alert.AlertType.WARNING, "Выберите JSON файл из списка или нажмите \"Выбрать JSON…\"",
-                    ButtonType.OK).showAndWait();
+            new Alert(Alert.AlertType.WARNING, "Выберите JSON файл из списка", ButtonType.OK).showAndWait();
             return;
         }
         File f = new File(selected);
@@ -315,7 +380,6 @@ public class TaskMonitoringController {
         recentJsonCombo.getItems().setAll(recentJson.getRecent());
     }
 
-    /** Core loading logic — extracted from former onAddJsonFile. */
     private void loadJsonFile(File f) {
         try {
             String txt = java.nio.file.Files.readString(f.toPath());
@@ -325,7 +389,6 @@ public class TaskMonitoringController {
             List<Task> tasksToCreate = new ArrayList<>();
             var deps = CoordinatorNettyServer.dependencies();
 
-            // Формат 1: диапазоны
             if (root.has("algorithms")) {
                 var algs = M.convertValue(root.get("algorithms"),
                         new com.fasterxml.jackson.core.type.TypeReference<java.util.List<String>>() {
@@ -344,30 +407,18 @@ public class TaskMonitoringController {
                             payload.put("alg", alg);
                             payload.put("iterations", java.util.Map.of("max", iterMax));
                             payload.put("dimension", dim);
-                            String id = UUID.randomUUID().toString();
                             String payloadJson = M.writeValueAsString(payload);
-
-                            Task task = Task.builder()
-                                    .id(id)
-                                    .payload(payloadJson)
-                                    .status(TaskStatus.NEW)
-                                    .priority(0)
-                                    .algorithm(alg)
-                                    .inputIterations(iterMax)
-                                    .inputDimension(dim)
-                                    .build();
-                            tasksToCreate.add(task);
+                            tasksToCreate.add(Task.builder()
+                                    .id(UUID.randomUUID().toString())
+                                    .payload(payloadJson).status(TaskStatus.NEW).priority(0)
+                                    .algorithm(alg).inputIterations(iterMax).inputDimension(dim)
+                                    .build());
                         }
                     }
                 }
-            }
-            // Формат 2: список готовых payload-ов
-            else if (root.isArray()) {
+            } else if (root.isArray()) {
                 for (var n : root) {
                     String payloadJson = n.toString();
-                    String id = UUID.randomUUID().toString();
-
-                    // Parse input params from individual payload
                     String pAlg = null;
                     Integer pIter = null, pAgents = null, pDim = null;
                     try {
@@ -385,50 +436,59 @@ public class TaskMonitoringController {
                     } catch (Exception ignored) {
                     }
 
-                    Task task = Task.builder()
-                            .id(id)
-                            .payload(payloadJson)
-                            .status(TaskStatus.NEW)
-                            .priority(0)
-                            .algorithm(pAlg)
-                            .inputIterations(pIter)
-                            .inputAgents(pAgents)
-                            .inputDimension(pDim)
-                            .build();
-                    tasksToCreate.add(task);
+                    tasksToCreate.add(Task.builder()
+                            .id(UUID.randomUUID().toString())
+                            .payload(payloadJson).status(TaskStatus.NEW).priority(0)
+                            .algorithm(pAlg).inputIterations(pIter).inputAgents(pAgents).inputDimension(pDim)
+                            .build());
                 }
             } else {
                 throw new IllegalArgumentException("Неизвестный формат JSON.");
             }
 
-            // Save tasks using service
-            if (!tasksToCreate.isEmpty()) {
+            if (!tasksToCreate.isEmpty())
                 deps.taskService().createTasks(tasksToCreate);
-            }
-
-            // Save to recent on success
             recentJson.addPath(f.getAbsolutePath());
             refreshJsonCombo();
-
             AppBus.fireTasksChanged();
             refreshTasks();
             new Alert(Alert.AlertType.INFORMATION, "Добавлено задач: " + tasksToCreate.size(), ButtonType.OK)
                     .showAndWait();
-
         } catch (Exception e) {
             new Alert(Alert.AlertType.ERROR, "Ошибка загрузки: " + e.getMessage(), ButtonType.OK).showAndWait();
         }
     }
 
-    /**
-     * Вспомогалка: вытянуть список значений из {min,max,step} или единственного
-     * числа
-     */
+    // ================== Retry timer ==================
+
+    private void scheduleRetry() {
+        if (retryTimer != null)
+            return;
+        retryTimer = new Timer("exec-retry", true);
+        retryTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                Platform.runLater(() -> {
+                    retryTimer = null;
+                    refreshAll();
+                });
+            }
+        }, 2000);
+    }
+
+    private void cancelRetryTimer() {
+        if (retryTimer != null) {
+            retryTimer.cancel();
+            retryTimer = null;
+        }
+    }
+
+    // ================== Helpers ==================
+
     private static java.util.List<Integer> expandRange(com.fasterxml.jackson.databind.JsonNode node) {
         java.util.List<Integer> out = new java.util.ArrayList<>();
         if (node == null || node.isMissingNode() || node.isNull())
             return out;
-
         if (node.isObject()) {
             int min = node.path("min").asInt(0);
             int max = node.path("max").asInt(min);
@@ -441,8 +501,6 @@ public class TaskMonitoringController {
         return out;
     }
 
-    // ---- helpers ----
-
     private static String nz(String s) {
         return s == null || s.isBlank() ? "—" : s;
     }
@@ -453,72 +511,86 @@ public class TaskMonitoringController {
         long s = ms / 1000;
         long m = s / 60;
         long sec = s % 60;
-        if (m > 0)
-            return m + "m " + sec + "s";
-        return sec + "s";
+        return m > 0 ? m + "m " + sec + "s" : sec + "s";
     }
 
-    private static String extractFunc(String payloadJson) {
-        if (payloadJson == null || payloadJson.isBlank())
+    private static String extractAlg(String j) {
+        if (j == null || j.isBlank())
             return "—";
         try {
-            int i = payloadJson.indexOf("\"func\"");
+            int i = j.indexOf("\"alg\"");
             if (i < 0)
                 return "—";
-            int c = payloadJson.indexOf(':', i);
-            int q1 = payloadJson.indexOf('"', c);
-            int q2 = payloadJson.indexOf('"', q1 + 1);
+            int c = j.indexOf(':', i);
+            int q1 = j.indexOf('"', c);
+            int q2 = j.indexOf('"', q1 + 1);
             if (q1 > 0 && q2 > q1)
-                return payloadJson.substring(q1 + 1, q2);
-        } catch (Exception ignore) {
+                return j.substring(q1 + 1, q2);
+        } catch (Exception e) {
         }
         return "—";
     }
 
-    private static String calcProgress(String status, String payloadJson, Integer iter) {
+    private static String extractFunc(String j) {
+        if (j == null || j.isBlank())
+            return "—";
+        try {
+            int i = j.indexOf("\"func\"");
+            if (i < 0)
+                return "—";
+            int c = j.indexOf(':', i);
+            int q1 = j.indexOf('"', c);
+            int q2 = j.indexOf('"', q1 + 1);
+            if (q1 > 0 && q2 > q1)
+                return j.substring(q1 + 1, q2);
+        } catch (Exception e) {
+        }
+        return "—";
+    }
+
+    private static String calcProgress(String status, String payload, Integer iter) {
         if ("DONE".equals(status))
             return "100%";
         if ("FAILED".equals(status))
             return "—";
         if (iter == null)
             return "—";
-        Integer max = extractIterationsMax(payloadJson);
+        Integer max = extractIterationsMax(payload);
         if (max == null || max <= 0)
             return iter + " it";
         int pct = (int) Math.max(0, Math.min(100, Math.round(iter * 100.0 / max)));
         return pct + "% (" + iter + "/" + max + ")";
     }
 
-    private static Integer extractIterationsMax(String payloadJson) {
-        if (payloadJson == null)
+    private static Integer extractIterationsMax(String j) {
+        if (j == null)
             return null;
         try {
-            int p = payloadJson.indexOf("\"iterations\"");
-            int blockStart = (p >= 0) ? p : payloadJson.indexOf("\"iterMax\"");
-            if (blockStart < 0)
+            int p = j.indexOf("\"iterations\"");
+            int bs = (p >= 0) ? p : j.indexOf("\"iterMax\"");
+            if (bs < 0)
                 return null;
-
-            int maxKey = payloadJson.indexOf("\"max\"", blockStart);
-            if (maxKey >= 0) {
-                int colon = payloadJson.indexOf(':', maxKey);
-                int end = colon < 0 ? -1 : findNumberEnd(payloadJson, colon + 1);
-                if (end > 0) {
-                    String num = payloadJson.substring(colon + 1, end).replaceAll("[^0-9]", "");
-                    if (!num.isEmpty())
-                        return Integer.parseInt(num);
+            int mk = j.indexOf("\"max\"", bs);
+            if (mk >= 0) {
+                int c = j.indexOf(':', mk);
+                int e = c < 0 ? -1 : findNumberEnd(j, c + 1);
+                if (e > 0) {
+                    String n = j.substring(c + 1, e).replaceAll("[^0-9]", "");
+                    if (!n.isEmpty())
+                        return Integer.parseInt(n);
                 }
             }
-            int im = payloadJson.indexOf("\"iterMax\"");
+            int im = j.indexOf("\"iterMax\"");
             if (im >= 0) {
-                int colon = payloadJson.indexOf(':', im);
-                int end = colon < 0 ? -1 : findNumberEnd(payloadJson, colon + 1);
-                if (end > 0) {
-                    String num = payloadJson.substring(colon + 1, end).replaceAll("[^0-9]", "");
-                    if (!num.isEmpty())
-                        return Integer.parseInt(num);
+                int c = j.indexOf(':', im);
+                int e = c < 0 ? -1 : findNumberEnd(j, c + 1);
+                if (e > 0) {
+                    String n = j.substring(c + 1, e).replaceAll("[^0-9]", "");
+                    if (!n.isEmpty())
+                        return Integer.parseInt(n);
                 }
             }
-        } catch (Exception ignore) {
+        } catch (Exception e) {
         }
         return null;
     }
@@ -527,8 +599,28 @@ public class TaskMonitoringController {
         int i = from;
         while (i < s.length() && (Character.isWhitespace(s.charAt(i)) || s.charAt(i) == ':'))
             i++;
-        while (i < s.length() && (Character.isDigit(s.charAt(i))))
+        while (i < s.length() && Character.isDigit(s.charAt(i)))
             i++;
         return i;
+    }
+
+    private static int parseIntOr(TextField tf, int fb) {
+        if (tf == null || tf.getText() == null || tf.getText().isBlank())
+            return fb;
+        try {
+            return Integer.parseInt(tf.getText().trim());
+        } catch (NumberFormatException e) {
+            return fb;
+        }
+    }
+
+    private static double parseDoubleOr(TextField tf, double fb) {
+        if (tf == null || tf.getText() == null || tf.getText().isBlank())
+            return fb;
+        try {
+            return Double.parseDouble(tf.getText().trim());
+        } catch (NumberFormatException e) {
+            return fb;
+        }
     }
 }

@@ -218,3 +218,31 @@
 .table-row-cell.row-down {
     -fx-background-color: rgba(255, 80, 80, 0.12);
 }
+
+/* Spot cards */
+.spot-card {
+    -fx-background-color: #2a2a2a;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: #444;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 4, 0, 0, 1);
+}
+
+.spot-card-up {
+    -fx-border-color: #2e9e4f;
+}
+
+.spot-card-down {
+    -fx-border-color: #d64545;
+    -fx-opacity: 0.6;
+}
+
+.spots-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+
+.spots-scroll .viewport {
+    -fx-background-color: transparent;
+}

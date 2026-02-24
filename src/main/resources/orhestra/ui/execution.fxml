@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" xmlns:fx="http://javafx.com/fxml"
+      fx:controller="orhestra.coordinator.ui.ExecutionController"
+      styleClass="pad">
+
+    <!-- Stats header: task counters -->
+    <HBox spacing="12" alignment="CENTER_LEFT" styleClass="stats-bar">
+        <Label text="Execution" styleClass="section-header"/>
+        <Region HBox.hgrow="ALWAYS"/>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblNew" text="0" styleClass="stat-value"/>
+            <Label text="в очереди" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblRunning" text="0" styleClass="stat-value"/>
+            <Label text="работают" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblDone" text="0" styleClass="stat-value"/>
+            <Label text="готово" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblFailed" text="0" styleClass="stat-value"/>
+            <Label text="ошибки" styleClass="stat-label"/>
+        </VBox>
+    </HBox>
+
+    <!-- SPOT Workers cards -->
+    <TitledPane text="SPOT Workers" expanded="true" animated="true">
+        <VBox spacing="6">
+            <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>
+            <ScrollPane fitToHeight="true" prefHeight="100" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                        styleClass="spots-scroll">
+                <FlowPane fx:id="spotCards" hgap="8" vgap="8" prefWrapLength="2000"/>
+            </ScrollPane>
+            <Label fx:id="lblSpotCount" text="Spots: 0" styleClass="muted"/>
+        </VBox>
+    </TitledPane>
+
+    <!-- Simulation controls -->
+    <TitledPane text="Simulation" expanded="false" animated="true">
+        <VBox spacing="8">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+            <HBox spacing="12" alignment="CENTER_LEFT">
+                <Label text="Workers:" prefWidth="80"/>
+                <Spinner fx:id="simWorkers" prefWidth="90" editable="true"/>
+                <Label text="Delay ms:" prefWidth="70"/>
+                <TextField fx:id="simDelayMin" prefWidth="60" promptText="200"/>
+                <Label text="—"/>
+                <TextField fx:id="simDelayMax" prefWidth="60" promptText="1200"/>
+                <Label text="Fail rate:" prefWidth="65"/>
+                <TextField fx:id="simFailRate" prefWidth="55" promptText="0.0"/>
+            </HBox>
+            <HBox spacing="8">
+                <Button fx:id="btnStartSim" text="▶ Start simulation" onAction="#handleStartSim"
+                        styleClass="btn-primary"/>
+                <Button fx:id="btnStopSim" text="■ Stop simulation" onAction="#handleStopSim"
+                        styleClass="btn-danger" disable="true"/>
+            </HBox>
+        </VBox>
+    </TitledPane>
+
+    <!-- JSON Files -->
+    <TitledPane text="Файлы задач (JSON)" expanded="false" animated="true">
+        <VBox spacing="6">
+            <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>
+            <HBox spacing="8" alignment="CENTER_LEFT">
+                <ComboBox fx:id="recentJsonCombo" prefWidth="300" promptText="Выберите JSON файл…"/>
+                <Button text="✕" onAction="#handleRemoveJson" styleClass="btn-danger" prefWidth="28"/>
+                <Button text="🗑" onAction="#handleClearJson" styleClass="btn-danger" prefWidth="28"/>
+            </HBox>
+            <HBox spacing="8">
+                <Button text="Выбрать JSON…" onAction="#onAddJsonFile" styleClass="btn-primary"/>
+                <Button text="Загрузить выбранный" onAction="#handleLoadSelectedJson" styleClass="btn-primary"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button text="Обновить" onAction="#refreshTasks" styleClass="btn-primary"/>
+            </HBox>
+        </VBox>
+    </TitledPane>
+
+    <!-- Task Table -->
+    <TableView fx:id="taskTable" VBox.vgrow="ALWAYS">
+        <placeholder>
+            <Label text="Задач пока нет. Загрузите JSON или дождитесь задач от координатора."
+                   styleClass="muted" style="-fx-font-size: 14;"/>
+        </placeholder>
+        <columns>
+            <TableColumn fx:id="idColumn"        text="ID"        prefWidth="120"/>
+            <TableColumn fx:id="algColumn"       text="Алгоритм"  prefWidth="80"/>
+            <TableColumn fx:id="funcColumn"      text="Функция"   prefWidth="90"/>
+            <TableColumn fx:id="iterColumn"      text="Итерации"  prefWidth="65"/>
+            <TableColumn fx:id="agentsColumn"    text="Агенты"    prefWidth="55"/>
+            <TableColumn fx:id="dimensionColumn" text="Размерн."  prefWidth="65"/>
+            <TableColumn fx:id="spotIdColumn"    text="Spot"      prefWidth="80"/>
+            <TableColumn fx:id="runtimeColumn"   text="Время"     prefWidth="80"/>
+            <TableColumn fx:id="statusColumn"    text="Статус"    prefWidth="90"/>
+            <TableColumn fx:id="progressColumn"  text="Прогресс"  prefWidth="80"/>
+        </columns>
+    </TableView>
+</VBox>

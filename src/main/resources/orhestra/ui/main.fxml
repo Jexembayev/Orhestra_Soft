@@ -31,14 +31,9 @@
                         <fx:include source="/orhestra/ui/vm_creator.fxml"/>
                     </content>
                 </Tab>
-                <Tab text="Spot Monitoring" closable="false">
+                <Tab text="Execution" closable="false">
                     <content>
-                        <fx:include source="/orhestra/ui/spot_monitoring.fxml"/>
-                    </content>
-                </Tab>
-                <Tab text="Task Monitoring" closable="false">
-                    <content>
-                        <fx:include source="/orhestra/ui/task_monitoring.fxml"/>
+                        <fx:include source="/orhestra/ui/execution.fxml"/>
                     </content>
                 </Tab>
             </tabs>
