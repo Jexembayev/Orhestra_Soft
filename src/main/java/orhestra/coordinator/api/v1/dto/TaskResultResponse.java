@@ -2,6 +2,8 @@ package orhestra.coordinator.api.v1.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import orhestra.coordinator.model.Task;
 
 import java.time.Instant;
@@ -25,29 +27,52 @@ public record TaskResultResponse(
         @JsonProperty("startedAt") Instant startedAt,
         @JsonProperty("finishedAt") Instant finishedAt,
         @JsonProperty("errorMessage") String errorMessage) {
-    /** Create response from domain model */
-    public static TaskResultResponse from(Task task) {
-        // Parse algorithm params from payload if needed
-        // For now, we return the raw data
-        return new TaskResultResponse(
-                task.id(),
-                task.status().name(),
-                null, // algorithm - parse from payload
-                null, // iterations - parse from payload
-                null, // agents - parse from payload
-                null, // dimension - parse from payload
-                task.runtimeMs(),
-                task.iter(),
-                task.fopt(),
-                task.assignedTo(),
-                task.startedAt(),
-                task.finishedAt(),
-                task.errorMessage());
-    }
 
-    /** Create response with parsed payload */
-    public static TaskResultResponse from(Task task, String algorithm, Integer iterations, Integer agents,
-            Integer dimension) {
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    /**
+     * Create response from domain model.
+     * Parses task.payload() JSON to extract algorithm parameters.
+     * Payload format:
+     * {"alg":"PSO","iterations":{"max":100},"agents":10,"dimension":2}
+     */
+    public static TaskResultResponse from(Task task) {
+        String algorithm = null;
+        Integer iterations = null;
+        Integer agents = null;
+        Integer dimension = null;
+
+        try {
+            if (task.payload() != null && !task.payload().isBlank()) {
+                JsonNode root = MAPPER.readTree(task.payload());
+
+                // "alg" field → algorithm name
+                if (root.has("alg") && !root.get("alg").isNull()) {
+                    algorithm = root.get("alg").asText();
+                }
+
+                // "iterations" → either {"max": N} object or plain number
+                JsonNode iterNode = root.path("iterations");
+                if (iterNode.isObject() && iterNode.has("max")) {
+                    iterations = iterNode.get("max").asInt();
+                } else if (iterNode.isNumber()) {
+                    iterations = iterNode.asInt();
+                }
+
+                // "agents" → plain number
+                if (root.has("agents") && root.get("agents").isNumber()) {
+                    agents = root.get("agents").asInt();
+                }
+
+                // "dimension" → plain number
+                if (root.has("dimension") && root.get("dimension").isNumber()) {
+                    dimension = root.get("dimension").asInt();
+                }
+            }
+        } catch (Exception ignored) {
+            // Malformed payload — leave fields as null
+        }
+
         return new TaskResultResponse(
                 task.id(),
                 task.status().name(),
