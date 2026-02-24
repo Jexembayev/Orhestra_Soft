@@ -117,7 +117,11 @@ public final class Database implements AutoCloseable {
                             runtime_ms      BIGINT,
                             iter            INT,
                             fopt            DOUBLE,
-                            result          CLOB
+                            result          CLOB,
+                            algorithm       VARCHAR(128),
+                            input_iterations INT,
+                            input_agents     INT,
+                            input_dimension  INT
                         );
                     """);
 
@@ -134,6 +138,12 @@ public final class Database implements AutoCloseable {
                             registered_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """);
+
+            // Migrate: add columns for existing databases
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS algorithm VARCHAR(128);");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_iterations INT;");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_agents INT;");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_dimension INT;");
 
             // Indexes
             st.addBatch(

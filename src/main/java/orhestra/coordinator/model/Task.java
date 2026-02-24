@@ -24,6 +24,11 @@ public final class Task {
     private final Integer iter;
     private final Double fopt;
     private final String result; // Full result JSON
+    // Input parameters (extracted from payload for DB querying)
+    private final String algorithm;
+    private final Integer inputIterations;
+    private final Integer inputAgents;
+    private final Integer inputDimension;
 
     private Task(Builder builder) {
         this.id = Objects.requireNonNull(builder.id, "id is required");
@@ -42,6 +47,10 @@ public final class Task {
         this.iter = builder.iter;
         this.fopt = builder.fopt;
         this.result = builder.result;
+        this.algorithm = builder.algorithm;
+        this.inputIterations = builder.inputIterations;
+        this.inputAgents = builder.inputAgents;
+        this.inputDimension = builder.inputDimension;
     }
 
     // Getters
@@ -109,6 +118,22 @@ public final class Task {
         return result;
     }
 
+    public String algorithm() {
+        return algorithm;
+    }
+
+    public Integer inputIterations() {
+        return inputIterations;
+    }
+
+    public Integer inputAgents() {
+        return inputAgents;
+    }
+
+    public Integer inputDimension() {
+        return inputDimension;
+    }
+
     /** Check if task can be retried */
     public boolean canRetry() {
         return attempts < maxAttempts;
@@ -139,7 +164,11 @@ public final class Task {
                 .runtimeMs(runtimeMs)
                 .iter(iter)
                 .fopt(fopt)
-                .result(result);
+                .result(result)
+                .algorithm(algorithm)
+                .inputIterations(inputIterations)
+                .inputAgents(inputAgents)
+                .inputDimension(inputDimension);
     }
 
     public static Builder builder() {
@@ -163,6 +192,10 @@ public final class Task {
         private Integer iter;
         private Double fopt;
         private String result;
+        private String algorithm;
+        private Integer inputIterations;
+        private Integer inputAgents;
+        private Integer inputDimension;
 
         public Builder id(String id) {
             this.id = id;
@@ -241,6 +274,26 @@ public final class Task {
 
         public Builder result(String result) {
             this.result = result;
+            return this;
+        }
+
+        public Builder algorithm(String algorithm) {
+            this.algorithm = algorithm;
+            return this;
+        }
+
+        public Builder inputIterations(Integer inputIterations) {
+            this.inputIterations = inputIterations;
+            return this;
+        }
+
+        public Builder inputAgents(Integer inputAgents) {
+            this.inputAgents = inputAgents;
+            return this;
+        }
+
+        public Builder inputDimension(Integer inputDimension) {
+            this.inputDimension = inputDimension;
             return this;
         }
 

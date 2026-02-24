@@ -121,6 +121,14 @@ class FullFlowIntegrationTest {
                         assertNotNull(t.result());
                 }
 
+                // 12b. Verify first-class input parameter fields persisted through DB
+                for (Task t : allTasks) {
+                        assertNotNull(t.algorithm(), "Task.algorithm() should be set from payload at creation");
+                        assertNotNull(t.inputIterations(), "Task.inputIterations() should be set");
+                        assertNotNull(t.inputAgents(), "Task.inputAgents() should be set");
+                        assertNotNull(t.inputDimension(), "Task.inputDimension() should be set");
+                }
+
                 // 13. Verify TaskResultResponse DTO populates payload fields
                 for (Task t : allTasks) {
                         TaskResultResponse dto = TaskResultResponse.from(t);

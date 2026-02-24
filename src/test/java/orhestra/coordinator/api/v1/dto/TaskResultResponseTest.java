@@ -128,4 +128,45 @@ class TaskResultResponseTest {
         assertNull(dto.algorithm());
         assertEquals("task-002", dto.taskId());
     }
+
+    @Test
+    @DisplayName("First-class Task fields take priority over payload parsing")
+    void fromTask_prefersFirstClassFields() {
+        // Task with first-class fields AND conflicting payload
+        Task task = Task.builder()
+                .id("task-fc")
+                .payload("{\"alg\":\"OLD\",\"iterations\":{\"max\":999},\"agents\":1,\"dimension\":1}")
+                .status(TaskStatus.DONE)
+                .algorithm("NEW_ALG")
+                .inputIterations(42)
+                .inputAgents(7)
+                .inputDimension(10)
+                .build();
+
+        TaskResultResponse dto = TaskResultResponse.from(task);
+
+        // Should use first-class fields, not payload
+        assertEquals("NEW_ALG", dto.algorithm());
+        assertEquals(42, dto.iterations());
+        assertEquals(7, dto.agents());
+        assertEquals(10, dto.dimension());
+    }
+
+    @Test
+    @DisplayName("Payload fallback: used when first-class fields are null")
+    void fromTask_fallsBackToPayload() {
+        // No first-class fields set — should parse from payload
+        Task task = Task.builder()
+                .id("task-fb")
+                .payload("{\"alg\":\"FALLBACK\",\"iterations\":300,\"agents\":20,\"dimension\":8}")
+                .status(TaskStatus.NEW)
+                .build();
+
+        TaskResultResponse dto = TaskResultResponse.from(task);
+
+        assertEquals("FALLBACK", dto.algorithm());
+        assertEquals(300, dto.iterations());
+        assertEquals(20, dto.agents());
+        assertEquals(8, dto.dimension());
+    }
 }

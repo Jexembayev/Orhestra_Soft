@@ -37,40 +37,43 @@ public record TaskResultResponse(
      * {"alg":"PSO","iterations":{"max":100},"agents":10,"dimension":2}
      */
     public static TaskResultResponse from(Task task) {
-        String algorithm = null;
-        Integer iterations = null;
-        Integer agents = null;
-        Integer dimension = null;
+        // Prefer first-class Task fields; fall back to parsing payload for backward
+        // compat
+        String algorithm = task.algorithm();
+        Integer iterations = task.inputIterations();
+        Integer agents = task.inputAgents();
+        Integer dimension = task.inputDimension();
 
-        try {
-            if (task.payload() != null && !task.payload().isBlank()) {
-                JsonNode root = MAPPER.readTree(task.payload());
+        // Fall back to payload parsing if fields are null (old tasks)
+        if (algorithm == null || iterations == null || agents == null || dimension == null) {
+            try {
+                if (task.payload() != null && !task.payload().isBlank()) {
+                    JsonNode root = MAPPER.readTree(task.payload());
 
-                // "alg" field → algorithm name
-                if (root.has("alg") && !root.get("alg").isNull()) {
-                    algorithm = root.get("alg").asText();
+                    if (algorithm == null && root.has("alg") && !root.get("alg").isNull()) {
+                        algorithm = root.get("alg").asText();
+                    }
+
+                    if (iterations == null) {
+                        JsonNode iterNode = root.path("iterations");
+                        if (iterNode.isObject() && iterNode.has("max")) {
+                            iterations = iterNode.get("max").asInt();
+                        } else if (iterNode.isNumber()) {
+                            iterations = iterNode.asInt();
+                        }
+                    }
+
+                    if (agents == null && root.has("agents") && root.get("agents").isNumber()) {
+                        agents = root.get("agents").asInt();
+                    }
+
+                    if (dimension == null && root.has("dimension") && root.get("dimension").isNumber()) {
+                        dimension = root.get("dimension").asInt();
+                    }
                 }
-
-                // "iterations" → either {"max": N} object or plain number
-                JsonNode iterNode = root.path("iterations");
-                if (iterNode.isObject() && iterNode.has("max")) {
-                    iterations = iterNode.get("max").asInt();
-                } else if (iterNode.isNumber()) {
-                    iterations = iterNode.asInt();
-                }
-
-                // "agents" → plain number
-                if (root.has("agents") && root.get("agents").isNumber()) {
-                    agents = root.get("agents").asInt();
-                }
-
-                // "dimension" → plain number
-                if (root.has("dimension") && root.get("dimension").isNumber()) {
-                    dimension = root.get("dimension").asInt();
-                }
+            } catch (Exception ignored) {
+                // Malformed payload — leave fields as null
             }
-        } catch (Exception ignored) {
-            // Malformed payload — leave fields as null
         }
 
         return new TaskResultResponse(

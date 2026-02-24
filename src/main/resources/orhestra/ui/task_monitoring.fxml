@@ -65,13 +65,15 @@
                    styleClass="muted" style="-fx-font-size: 14;"/>
         </placeholder>
         <columns>
-            <TableColumn fx:id="idColumn"       text="ID"        prefWidth="160"/>
-            <TableColumn fx:id="algColumn"      text="Алгоритм"  prefWidth="100"/>
-            <TableColumn fx:id="funcColumn"     text="Функция"   prefWidth="120"/>
-            <TableColumn fx:id="iterColumn"     text="Итерации"  prefWidth="80"/>
-            <TableColumn fx:id="runtimeColumn"  text="Время"     prefWidth="120"/>
-            <TableColumn fx:id="statusColumn"   text="Статус"    prefWidth="120"/>
-            <TableColumn fx:id="progressColumn" text="Прогресс"  prefWidth="120"/>
+            <TableColumn fx:id="idColumn"        text="ID"        prefWidth="140"/>
+            <TableColumn fx:id="algColumn"       text="Алгоритм"  prefWidth="90"/>
+            <TableColumn fx:id="funcColumn"      text="Функция"   prefWidth="100"/>
+            <TableColumn fx:id="iterColumn"      text="Итерации"  prefWidth="70"/>
+            <TableColumn fx:id="agentsColumn"    text="Агенты"    prefWidth="60"/>
+            <TableColumn fx:id="dimensionColumn" text="Размерн."  prefWidth="70"/>
+            <TableColumn fx:id="runtimeColumn"   text="Время"     prefWidth="90"/>
+            <TableColumn fx:id="statusColumn"    text="Статус"    prefWidth="100"/>
+            <TableColumn fx:id="progressColumn"  text="Прогресс"  prefWidth="100"/>
         </columns>
     </TableView>
 </VBox>

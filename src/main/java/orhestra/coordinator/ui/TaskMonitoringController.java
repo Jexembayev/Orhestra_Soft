@@ -25,6 +25,8 @@ public class TaskMonitoringController {
     private TableColumn<TaskInfo, String> idColumn, algColumn, funcColumn, runtimeColumn, statusColumn, progressColumn;
     @FXML
     private TableColumn<TaskInfo, String> iterColumn;
+    @FXML
+    private TableColumn<TaskInfo, String> agentsColumn, dimensionColumn;
 
     @FXML
     private Label lblNew, lblRunning, lblDone, lblFailed;
@@ -37,14 +39,27 @@ public class TaskMonitoringController {
     private void initialize() {
         // ID / ALG
         idColumn.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().id()));
-        algColumn.setCellValueFactory(c -> new SimpleStringProperty(nz(c.getValue().algId())));
+        algColumn.setCellValueFactory(c -> new SimpleStringProperty(
+                c.getValue().algId() != null ? c.getValue().algId() : "—"));
 
         // FUNC (достанем из payload, если есть "func" в json; иначе "—")
         funcColumn.setCellValueFactory(c -> new SimpleStringProperty(extractFunc(c.getValue().payload())));
 
-        // ITER
+        // ITER (input iterations, not result iter)
         iterColumn.setCellValueFactory(c -> new SimpleStringProperty(
-                c.getValue().iter() == null ? "—" : String.valueOf(c.getValue().iter())));
+                c.getValue().inputIterations() == null ? "—" : String.valueOf(c.getValue().inputIterations())));
+
+        // AGENTS
+        if (agentsColumn != null) {
+            agentsColumn.setCellValueFactory(c -> new SimpleStringProperty(
+                    c.getValue().inputAgents() == null ? "—" : String.valueOf(c.getValue().inputAgents())));
+        }
+
+        // DIMENSION
+        if (dimensionColumn != null) {
+            dimensionColumn.setCellValueFactory(c -> new SimpleStringProperty(
+                    c.getValue().inputDimension() == null ? "—" : String.valueOf(c.getValue().inputDimension())));
+        }
 
         // RUNTIME
         runtimeColumn.setCellValueFactory(c -> new SimpleStringProperty(formatRuntime(c.getValue().runtimeMs())));
@@ -180,9 +195,14 @@ public class TaskMonitoringController {
      * Convert Task model to TaskInfo for UI display.
      */
     private TaskInfo toTaskInfo(Task task) {
+        // Prefer first-class Task.algorithm(); fall back to payload extraction
+        String algDisplay = task.algorithm();
+        if (algDisplay == null || algDisplay.isBlank()) {
+            algDisplay = extractAlg(task.payload());
+        }
         return new TaskInfo(
                 task.id(),
-                extractAlg(task.payload()), // Extract "alg" from payload for display
+                algDisplay,
                 task.status() != null ? task.status().name() : "NEW",
                 task.iter(),
                 task.runtimeMs(),
@@ -190,7 +210,10 @@ public class TaskMonitoringController {
                 task.payload(),
                 task.assignedTo(),
                 task.startedAt(),
-                task.finishedAt());
+                task.finishedAt(),
+                task.inputIterations(),
+                task.inputAgents(),
+                task.inputDimension());
     }
 
     /**
@@ -321,6 +344,9 @@ public class TaskMonitoringController {
                                     .payload(payloadJson)
                                     .status(TaskStatus.NEW)
                                     .priority(0)
+                                    .algorithm(alg)
+                                    .inputIterations(iterMax)
+                                    .inputDimension(dim)
                                     .build();
                             tasksToCreate.add(task);
                         }
@@ -333,11 +359,33 @@ public class TaskMonitoringController {
                     String payloadJson = n.toString();
                     String id = UUID.randomUUID().toString();
 
+                    // Parse input params from individual payload
+                    String pAlg = null;
+                    Integer pIter = null, pAgents = null, pDim = null;
+                    try {
+                        if (n.has("alg") && !n.get("alg").isNull())
+                            pAlg = n.get("alg").asText();
+                        var iterN = n.path("iterations");
+                        if (iterN.isObject() && iterN.has("max"))
+                            pIter = iterN.get("max").asInt();
+                        else if (iterN.isNumber())
+                            pIter = iterN.asInt();
+                        if (n.has("agents") && n.get("agents").isNumber())
+                            pAgents = n.get("agents").asInt();
+                        if (n.has("dimension") && n.get("dimension").isNumber())
+                            pDim = n.get("dimension").asInt();
+                    } catch (Exception ignored) {
+                    }
+
                     Task task = Task.builder()
                             .id(id)
                             .payload(payloadJson)
                             .status(TaskStatus.NEW)
                             .priority(0)
+                            .algorithm(pAlg)
+                            .inputIterations(pIter)
+                            .inputAgents(pAgents)
+                            .inputDimension(pDim)
                             .build();
                     tasksToCreate.add(task);
                 }

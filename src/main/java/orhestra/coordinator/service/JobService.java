@@ -60,16 +60,44 @@ public class JobService {
 
         // Create tasks for this job
         List<Task> tasks = new ArrayList<>();
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (int i = 0; i < payloads.size(); i++) {
             String taskId = UUID.randomUUID().toString();
+            String payloadStr = payloads.get(i);
+
+            // Extract input parameters from payload
+            String alg = null;
+            Integer inputIter = null;
+            Integer inputAgents = null;
+            Integer inputDim = null;
+            try {
+                var root = mapper.readTree(payloadStr);
+                if (root.has("alg") && !root.get("alg").isNull())
+                    alg = root.get("alg").asText();
+                var iterNode = root.path("iterations");
+                if (iterNode.isObject() && iterNode.has("max"))
+                    inputIter = iterNode.get("max").asInt();
+                else if (iterNode.isNumber())
+                    inputIter = iterNode.asInt();
+                if (root.has("agents") && root.get("agents").isNumber())
+                    inputAgents = root.get("agents").asInt();
+                if (root.has("dimension") && root.get("dimension").isNumber())
+                    inputDim = root.get("dimension").asInt();
+            } catch (Exception ignored) {
+            }
+
             Task task = Task.builder()
                     .id(taskId)
                     .jobId(jobId)
-                    .payload(payloads.get(i))
+                    .payload(payloadStr)
                     .status(TaskStatus.NEW)
                     .priority(i) // Earlier tasks have lower priority (process in order)
                     .maxAttempts(this.config.defaultMaxAttempts())
                     .createdAt(Instant.now())
+                    .algorithm(alg)
+                    .inputIterations(inputIter)
+                    .inputAgents(inputAgents)
+                    .inputDimension(inputDim)
                     .build();
             tasks.add(task);
         }

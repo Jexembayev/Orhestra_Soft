@@ -32,8 +32,9 @@ public class JdbcTaskRepository implements TaskRepository {
     public void save(Task task) {
         String sql = """
                     INSERT INTO tasks (id, job_id, payload, status, assigned_to, priority, attempts, max_attempts,
-                                       error_message, created_at, started_at, finished_at, runtime_ms, iter, fopt, result)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       error_message, created_at, started_at, finished_at, runtime_ms, iter, fopt, result,
+                                       algorithm, input_iterations, input_agents, input_dimension)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
@@ -55,6 +56,10 @@ public class JdbcTaskRepository implements TaskRepository {
             setIntOrNull(ps, 14, task.iter());
             setDoubleOrNull(ps, 15, task.fopt());
             ps.setString(16, task.result());
+            ps.setString(17, task.algorithm());
+            setIntOrNull(ps, 18, task.inputIterations());
+            setIntOrNull(ps, 19, task.inputAgents());
+            setIntOrNull(ps, 20, task.inputDimension());
 
             ps.executeUpdate();
             conn.commit();
@@ -69,8 +74,9 @@ public class JdbcTaskRepository implements TaskRepository {
             return;
 
         String sql = """
-                    INSERT INTO tasks (id, job_id, payload, status, priority, attempts, max_attempts, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tasks (id, job_id, payload, status, priority, attempts, max_attempts, created_at,
+                                       algorithm, input_iterations, input_agents, input_dimension)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
@@ -85,6 +91,10 @@ public class JdbcTaskRepository implements TaskRepository {
                 ps.setInt(6, task.attempts());
                 ps.setInt(7, task.maxAttempts());
                 setTimestamp(ps, 8, task.createdAt() != null ? task.createdAt() : Instant.now());
+                ps.setString(9, task.algorithm());
+                setIntOrNull(ps, 10, task.inputIterations());
+                setIntOrNull(ps, 11, task.inputAgents());
+                setIntOrNull(ps, 12, task.inputDimension());
                 ps.addBatch();
             }
 
@@ -719,6 +729,10 @@ public class JdbcTaskRepository implements TaskRepository {
                 .iter(getIntOrNull(rs, "iter"))
                 .fopt(getDoubleOrNull(rs, "fopt"))
                 .result(rs.getString("result"))
+                .algorithm(rs.getString("algorithm"))
+                .inputIterations(getIntOrNull(rs, "input_iterations"))
+                .inputAgents(getIntOrNull(rs, "input_agents"))
+                .inputDimension(getIntOrNull(rs, "input_dimension"))
                 .build();
     }
 
