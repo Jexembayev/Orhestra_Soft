@@ -1,6 +1,7 @@
 package orhestra.coordinator.service;
 
 import orhestra.coordinator.config.CoordinatorConfig;
+import orhestra.coordinator.core.AppBus;
 import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.model.SpotStatus;
 import orhestra.coordinator.repository.SpotRepository;
@@ -96,24 +97,25 @@ public class SpotService {
     }
 
     /**
-     * Check for stale SPOTs and mark them as DOWN.
-     * Also frees any tasks assigned to those SPOTs.
+     * Check for stale SPOTs, free their tasks, and delete them.
      * 
-     * @return number of SPOTs marked as DOWN
+     * @return number of SPOTs removed
      */
     public int reapStaleSpots() {
         Instant cutoff = Instant.now().minus(config.spotHeartbeatTimeout());
         List<String> staleIds = spotRepository.markStaleAsDown(cutoff);
 
-        // Free tasks assigned to stale SPOTs
+        // Free tasks assigned to stale SPOTs, then delete them
         int totalFreed = 0;
         for (String spotId : staleIds) {
             int freed = taskRepository.freeTasksForSpot(spotId);
             totalFreed += freed;
+            spotRepository.delete(spotId);
         }
 
         if (!staleIds.isEmpty()) {
             log.info("Reaped {} stale SPOTs, freed {} tasks", staleIds.size(), totalFreed);
+            AppBus.fireSpotsChanged();
         }
 
         return staleIds.size();

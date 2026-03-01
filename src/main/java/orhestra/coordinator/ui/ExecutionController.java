@@ -50,7 +50,7 @@ public class ExecutionController {
 
     // ---- Spot cards ----
     @FXML
-    private FlowPane spotCards;
+    private HBox spotCards;
     @FXML
     private Label lblSpotCount;
 
@@ -236,10 +236,8 @@ public class ExecutionController {
         String status = spot.status() != null ? spot.status().name() : "DOWN";
         boolean isUp = "UP".equals(status);
 
-        long age = spot.lastHeartbeat() == null ? Long.MAX_VALUE
+        long ageSec = spot.lastHeartbeat() == null ? -1
                 : Math.max(0, Duration.between(spot.lastHeartbeat(), Instant.now()).getSeconds());
-        if (age > 5)
-            isUp = false;
 
         // Determine card color state
         double cpu = spot.cpuLoad();
@@ -268,7 +266,7 @@ public class ExecutionController {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        String beatText = age == Long.MAX_VALUE ? "—" : age + "s ago";
+        String beatText = ageSec < 0 ? "—" : formatAge(ageSec);
         Label beatLabel = new Label(beatText);
         beatLabel.getStyleClass().add("spot-card-beat");
 
@@ -372,6 +370,20 @@ public class ExecutionController {
 
         card.getChildren().addAll(header, resources, sep, tasksSection);
         return card;
+    }
+
+    /**
+     * Format heartbeat age in human-readable form.
+     * Package-private for testing.
+     */
+    static String formatAge(long seconds) {
+        if (seconds < 60)
+            return seconds + "s ago";
+        if (seconds < 3600)
+            return (seconds / 60) + "m" + (seconds % 60) + "s ago";
+        long h = seconds / 3600;
+        long m = (seconds % 3600) / 60;
+        return h + "h" + m + "m ago";
     }
 
     private Label mkStatLabel(String text, String styleClass) {

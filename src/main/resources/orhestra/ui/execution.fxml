@@ -29,17 +29,22 @@
         </VBox>
     </HBox>
 
-    <!-- SPOT Workers cards -->
-    <TitledPane text="SPOT Workers" expanded="true" animated="true">
-        <VBox spacing="6">
-            <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>
-            <ScrollPane fitToHeight="true" prefHeight="170" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
-                        styleClass="spots-scroll">
-                <FlowPane fx:id="spotCards" hgap="8" vgap="8" prefWrapLength="2000"/>
-            </ScrollPane>
+    <!-- SPOT Workers cards (always visible, no collapsible) -->
+    <VBox spacing="6" styleClass="spots-section">
+        <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>
+        <HBox alignment="CENTER_LEFT" spacing="8">
+            <Label text="SPOT Workers" styleClass="section-header"/>
+            <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="lblSpotCount" text="Spots: 0" styleClass="muted"/>
-        </VBox>
-    </TitledPane>
+        </HBox>
+        <ScrollPane fitToHeight="true" fitToWidth="false" prefHeight="200"
+                    hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+                    styleClass="spots-scroll">
+            <HBox fx:id="spotCards" spacing="10">
+                <padding><Insets top="4" right="4" bottom="4" left="4"/></padding>
+            </HBox>
+        </ScrollPane>
+    </VBox>
 
     <!-- Simulation controls -->
     <TitledPane text="Simulation" expanded="false" animated="true">
