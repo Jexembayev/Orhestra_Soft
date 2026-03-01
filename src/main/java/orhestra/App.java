@@ -65,6 +65,10 @@ public class App extends Application {
                 Objects.requireNonNull(getClass().getResource("/orhestra/ui/theme.css")).toExternalForm());
         stage.setTitle("Orhestra • Control Panel");
         stage.setScene(scene);
+        stage.setOnCloseRequest(e -> {
+            javafx.application.Platform.exit();
+            System.exit(0);
+        });
         stage.show();
     }
 
@@ -74,6 +78,7 @@ public class App extends Application {
         log.info("Application closing, stopping server...");
         CoordinatorNettyServer.stop();
         super.stop();
+        System.exit(0);
     }
 
     public static void main(String[] args) {

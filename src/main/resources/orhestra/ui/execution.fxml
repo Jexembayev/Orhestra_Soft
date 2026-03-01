@@ -37,7 +37,7 @@
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="lblSpotCount" text="Spots: 0" styleClass="muted"/>
         </HBox>
-        <ScrollPane fitToHeight="true" fitToWidth="false" prefHeight="200"
+        <ScrollPane fitToHeight="true" fitToWidth="false" prefHeight="280"
                     hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
                     styleClass="spots-scroll">
             <HBox fx:id="spotCards" spacing="10">
