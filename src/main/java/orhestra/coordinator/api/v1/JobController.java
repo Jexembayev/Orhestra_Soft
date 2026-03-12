@@ -8,6 +8,7 @@ import orhestra.coordinator.api.Controller;
 import orhestra.coordinator.api.v1.dto.CreateJobRequest;
 import orhestra.coordinator.api.v1.dto.JobResponse;
 import orhestra.coordinator.api.v1.dto.TaskResultResponse;
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.Job;
 import orhestra.coordinator.model.Task;
 import orhestra.coordinator.server.RouterHandler;
@@ -95,8 +96,13 @@ public class JobController implements Controller {
         request.validate();
 
         // Create job
+        ArtifactRef artifact = new ArtifactRef(
+                request.artifactBucket(),
+                request.artifactKey(),
+                request.artifactEndpoint());
+
         Job job = jobService.createJob(
-                request.jarPath(),
+                artifact,
                 request.mainClass(),
                 request.config(),
                 request.payloads());

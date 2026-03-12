@@ -4,6 +4,7 @@ import orhestra.coordinator.api.internal.v1.HeartbeatController;
 import orhestra.coordinator.api.internal.v1.TaskController;
 import orhestra.coordinator.api.v1.HealthController;
 import orhestra.coordinator.api.v1.JobController;
+import orhestra.coordinator.api.v1.ParameterSchemaController;
 import orhestra.coordinator.api.v1.SpotController;
 import orhestra.coordinator.repository.JobRepository;
 import orhestra.coordinator.repository.SpotRepository;
@@ -53,6 +54,7 @@ public final class Dependencies implements AutoCloseable {
     private final HealthController healthController;
     private final SpotController spotController;
     private final JobController jobController;
+    private final ParameterSchemaController parameterSchemaController;
     private final HeartbeatController heartbeatController;
     private final TaskController taskController;
 
@@ -85,6 +87,7 @@ public final class Dependencies implements AutoCloseable {
         this.healthController = new HealthController(database, spotService, taskService);
         this.spotController = new SpotController(spotService);
         this.jobController = new JobController(jobService);
+        this.parameterSchemaController = new ParameterSchemaController();
 
         // Controllers (internal API)
         this.heartbeatController = new HeartbeatController(spotService);
@@ -153,6 +156,10 @@ public final class Dependencies implements AutoCloseable {
         return jobController;
     }
 
+    public ParameterSchemaController parameterSchemaController() {
+        return parameterSchemaController;
+    }
+
     public HeartbeatController heartbeatController() {
         return heartbeatController;
     }
@@ -171,9 +178,10 @@ public final class Dependencies implements AutoCloseable {
                     .registerController(healthController)
                     .registerController(spotController)
                     .registerController(jobController)
+                    .registerController(parameterSchemaController)
                     .registerController(heartbeatController)
                     .registerController(taskController);
-            log.info("RouterHandler created with {} controllers", 5);
+            log.info("RouterHandler created with {} controllers", 6);
         }
         return routerHandler;
     }

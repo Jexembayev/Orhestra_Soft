@@ -2,6 +2,7 @@ package orhestra.coordinator.simulation;
 
 import orhestra.coordinator.config.CoordinatorConfig;
 import orhestra.coordinator.config.Dependencies;
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.Job;
 import orhestra.coordinator.model.Task;
 import orhestra.coordinator.model.TaskStatus;
@@ -49,7 +50,7 @@ class SimulationIntegrationTest {
         }
 
         Job job = deps.jobService().createJob(
-                "/path/to/sim.jar",
+                new ArtifactRef("sim-bucket", "sim.jar", "http://localhost:9000"),
                 "com.example.SimMain",
                 "{}",
                 payloads);
@@ -100,7 +101,9 @@ class SimulationIntegrationTest {
             payloads.add("{\"alg\":\"FAIL_TEST\",\"iterations\":5,\"agents\":1,\"dimension\":1}");
         }
 
-        Job job = deps.jobService().createJob("/path/to/sim.jar", "com.example.Main", "{}", payloads);
+        Job job = deps.jobService().createJob(
+                new ArtifactRef("sim-bucket", "sim.jar", "http://localhost:9000"),
+                "com.example.Main", "{}", payloads);
 
         // Start with 50% fail rate
         SimulationService sim = new SimulationService(deps.spotService(), deps.taskService());

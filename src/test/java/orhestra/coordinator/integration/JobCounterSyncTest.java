@@ -1,5 +1,6 @@
 package orhestra.coordinator.integration;
 
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.*;
 import orhestra.coordinator.store.Database;
 import orhestra.coordinator.store.JdbcJobRepository;
@@ -40,7 +41,7 @@ class JobCounterSyncTest {
         // 1. Create job with 1 task
         Job job = Job.builder()
                 .id("job-1")
-                .jarPath("/test.jar")
+                .artifact(new ArtifactRef("test-bucket", "test.jar", "http://localhost:9000"))
                 .mainClass("Test")
                 .config("{}")
                 .status(JobStatus.PENDING)
@@ -82,7 +83,7 @@ class JobCounterSyncTest {
         // 1. Create job with 1 task
         Job job = Job.builder()
                 .id("job-idempotent")
-                .jarPath("/test.jar")
+                .artifact(new ArtifactRef("test-bucket", "test.jar", "http://localhost:9000"))
                 .mainClass("Test")
                 .config("{}")
                 .status(JobStatus.PENDING)
@@ -122,7 +123,7 @@ class JobCounterSyncTest {
         // 1. Create job with 1 task
         Job job = Job.builder()
                 .id("job-fail")
-                .jarPath("/test.jar")
+                .artifact(new ArtifactRef("test-bucket", "test.jar", "http://localhost:9000"))
                 .mainClass("Test")
                 .config("{}")
                 .status(JobStatus.PENDING)
@@ -159,7 +160,7 @@ class JobCounterSyncTest {
         // 1. Create job with 1 task
         Job job = Job.builder()
                 .id("job-retry")
-                .jarPath("/test.jar")
+                .artifact(new ArtifactRef("test-bucket", "test.jar", "http://localhost:9000"))
                 .mainClass("Test")
                 .config("{}")
                 .status(JobStatus.PENDING)
@@ -201,7 +202,7 @@ class JobCounterSyncTest {
         // 1. Create job with 2 tasks
         Job job = Job.builder()
                 .id("job-multi")
-                .jarPath("/test.jar")
+                .artifact(new ArtifactRef("test-bucket", "test.jar", "http://localhost:9000"))
                 .mainClass("Test")
                 .config("{}")
                 .status(JobStatus.PENDING)

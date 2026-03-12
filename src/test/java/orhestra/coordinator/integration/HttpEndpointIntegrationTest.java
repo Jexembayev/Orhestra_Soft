@@ -61,12 +61,26 @@ class HttpEndpointIntegrationTest {
                 // 1. Create a job via POST /api/v1/jobs
                 String createJobBody = """
                                 {
-                                    "jarPath": "/test/optimization.jar",
-                                    "mainClass": "com.test.Main",
-                                    "algorithms": ["PSO"],
-                                    "iterations": {"min": 100, "max": 100, "step": 1},
-                                    "agents": {"min": 10, "max": 10, "step": 1},
-                                    "dimension": {"min": 2, "max": 2, "step": 1}
+                                    "artifactBucket":   "test-bucket",
+                                    "artifactKey":      "test/optimization.jar",
+                                    "artifactEndpoint": "http://localhost:9000",
+                                    "mainClass":        "com.test.Main",
+                                    "parameters": [
+                                        {
+                                            "groupId": "algorithm",
+                                            "params": {
+                                                "name": { "type": "ENUM_LIST", "values": ["PSO"] }
+                                            }
+                                        },
+                                        {
+                                            "groupId": "run",
+                                            "params": {
+                                                "iterations": { "type": "CONSTANT", "value": 100 },
+                                                "agents":     { "type": "CONSTANT", "value": 10  },
+                                                "dimension":  { "type": "CONSTANT", "value": 2   }
+                                            }
+                                        }
+                                    ]
                                 }
                                 """;
 
@@ -216,12 +230,26 @@ class HttpEndpointIntegrationTest {
                 // 1. Create job with 1 task
                 String createJobBody = """
                                 {
-                                    "jarPath": "/test/claim.jar",
-                                    "mainClass": "com.test.ClaimTest",
-                                    "algorithms": ["DE"],
-                                    "iterations": {"min": 50, "max": 50, "step": 1},
-                                    "agents": {"min": 5, "max": 5, "step": 1},
-                                    "dimension": {"min": 3, "max": 3, "step": 1}
+                                    "artifactBucket":   "test-bucket",
+                                    "artifactKey":      "test/claim.jar",
+                                    "artifactEndpoint": "http://localhost:9000",
+                                    "mainClass":        "com.test.ClaimTest",
+                                    "parameters": [
+                                        {
+                                            "groupId": "algorithm",
+                                            "params": {
+                                                "name": { "type": "ENUM_LIST", "values": ["DE"] }
+                                            }
+                                        },
+                                        {
+                                            "groupId": "run",
+                                            "params": {
+                                                "iterations": { "type": "CONSTANT", "value": 50 },
+                                                "agents":     { "type": "CONSTANT", "value": 5  },
+                                                "dimension":  { "type": "CONSTANT", "value": 3  }
+                                            }
+                                        }
+                                    ]
                                 }
                                 """;
 
@@ -347,12 +375,26 @@ class HttpEndpointIntegrationTest {
                 // 1. Create a job
                 String createJobBody = """
                                 {
-                                    "jarPath": "/test/restart.jar",
-                                    "mainClass": "com.test.RestartTest",
-                                    "algorithms": ["GA"],
-                                    "iterations": {"min": 10, "max": 10, "step": 1},
-                                    "agents": {"min": 5, "max": 5, "step": 1},
-                                    "dimension": {"min": 2, "max": 2, "step": 1}
+                                    "artifactBucket":   "test-bucket",
+                                    "artifactKey":      "test/restart.jar",
+                                    "artifactEndpoint": "http://localhost:9000",
+                                    "mainClass":        "com.test.RestartTest",
+                                    "parameters": [
+                                        {
+                                            "groupId": "algorithm",
+                                            "params": {
+                                                "name": { "type": "ENUM_LIST", "values": ["GA"] }
+                                            }
+                                        },
+                                        {
+                                            "groupId": "run",
+                                            "params": {
+                                                "iterations": { "type": "CONSTANT", "value": 10 },
+                                                "agents":     { "type": "CONSTANT", "value": 5  },
+                                                "dimension":  { "type": "CONSTANT", "value": 2  }
+                                            }
+                                        }
+                                    ]
                                 }
                                 """;
 

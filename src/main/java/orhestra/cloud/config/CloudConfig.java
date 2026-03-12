@@ -37,6 +37,16 @@ public class CloudConfig {
      */
     public String ovpnTag;
 
+    // S3 / Object Storage (Yandex, MinIO, AWS — любой S3-совместимый)
+    /** Эндпоинт S3: https://storage.yandexcloud.net или http://localhost:9000 */
+    public String s3Endpoint;
+    /** Имя бакета по умолчанию */
+    public String s3Bucket;
+    /** Access Key ID (статический ключ сервисного аккаунта) */
+    public String s3AccessKeyId;
+    /** Secret Access Key */
+    public String s3SecretAccessKey;
+
     public String oauthToken() {
         return oauthToken;
     }
@@ -119,13 +129,16 @@ public class CloudConfig {
         return sshPublicKey;
     }
 
-    // геттеры для OVPN (под контроллер/сервисы)
-    public String ovpnInstanceId() {
-        return ovpnInstanceId;
-    }
+    public String ovpnInstanceId() { return ovpnInstanceId; }
+    public String ovpnTag()        { return ovpnTag; }
 
-    public String ovpnTag() {
-        return ovpnTag;
+    public String s3Endpoint()         { return s3Endpoint; }
+    public String s3Bucket()           { return s3Bucket; }
+    public String s3AccessKeyId()      { return s3AccessKeyId; }
+    public String s3SecretAccessKey()  { return s3SecretAccessKey; }
+
+    public boolean hasS3Credentials() {
+        return s3AccessKeyId != null && !s3AccessKeyId.isBlank();
     }
 
     @Override

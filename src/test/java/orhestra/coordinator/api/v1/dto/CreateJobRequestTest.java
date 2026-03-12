@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -15,82 +16,133 @@ class CreateJobRequestTest {
     void deserializeFromJson() throws Exception {
         String json = """
                 {
-                  "jarPath": "s3://bucket/algo.jar",
-                  "mainClass": "algorithms.Main",
-                  "algorithms": ["sphere", "rosenbrock"],
-                  "iterations": { "min": 100, "max": 300, "step": 100 },
-                  "agents":     { "min": 25,  "max": 75,  "step": 25 },
-                  "dimension":  { "min": 1,   "max": 2,   "step": 1 }
+                  "artifactBucket":   "orhestra-algorithms",
+                  "artifactKey":      "experiments/algo.jar",
+                  "artifactEndpoint": "http://localhost:9000",
+                  "mainClass":        "com.example.Main",
+                  "parameters": [
+                    {
+                      "groupId": "algorithm",
+                      "params": {
+                        "name": { "type": "ENUM_LIST", "values": ["DE", "PSO"] }
+                      }
+                    }
+                  ]
                 }
                 """;
 
         CreateJobRequest req = mapper.readValue(json, CreateJobRequest.class);
 
-        assertEquals("s3://bucket/algo.jar", req.jarPath());
-        assertEquals("algorithms.Main", req.mainClass());
-        assertEquals(List.of("sphere", "rosenbrock"), req.algorithms());
-
-        assertEquals(100, req.iterations().min());
-        assertEquals(300, req.iterations().max());
-        assertEquals(100, req.iterations().step());
+        assertEquals("orhestra-algorithms", req.artifactBucket());
+        assertEquals("experiments/algo.jar", req.artifactKey());
+        assertEquals("http://localhost:9000", req.artifactEndpoint());
+        assertEquals("com.example.Main", req.mainClass());
+        assertEquals(1, req.parameters().size());
+        assertEquals("algorithm", req.parameters().get(0).groupId());
     }
 
     @Test
-    void rangeParamCount() {
-        var range = new CreateJobRequest.RangeParam(100, 300, 100);
-        assertEquals(3, range.count()); // 100, 200, 300
-
-        var single = new CreateJobRequest.RangeParam(10, 10, 1);
-        assertEquals(1, single.count()); // just 10
-
-        var invalid = new CreateJobRequest.RangeParam(10, 5, 1);
-        assertEquals(0, invalid.count()); // max < min
+    void parameterValueIntRangeExpands() {
+        ParameterValue pv = new ParameterValue("INT_RANGE", 100, 300, 100, null, null);
+        List<Object> vals = pv.expand();
+        assertEquals(List.of(100, 200, 300), vals);
     }
 
     @Test
-    void rangeParamValues() {
-        var range = new CreateJobRequest.RangeParam(25, 75, 25);
-        assertEquals(List.of(25, 50, 75), range.values());
+    void parameterValueConstantExpands() {
+        ParameterValue pv = new ParameterValue("CONSTANT", null, null, null, 42, null);
+        assertEquals(List.of(42), pv.expand());
     }
 
     @Test
-    void totalTasks() throws Exception {
+    void parameterValueEnumListExpands() {
+        ParameterValue pv = new ParameterValue("ENUM_LIST", null, null, null, null, List.of("DE", "PSO", "GWO"));
+        assertEquals(List.of("DE", "PSO", "GWO"), pv.expand());
+    }
+
+    @Test
+    void totalTasksCartesian() throws Exception {
         String json = """
                 {
-                  "jarPath": "s3://bucket/algo.jar",
-                  "mainClass": "Main",
-                  "algorithms": ["sphere", "rosenbrock"],
-                  "iterations": { "min": 100, "max": 300, "step": 100 },
-                  "agents":     { "min": 25,  "max": 75,  "step": 25 },
-                  "dimension":  { "min": 1,   "max": 2,   "step": 1 }
+                  "artifactBucket": "bucket",
+                  "artifactKey":    "algo.jar",
+                  "mainClass":      "Main",
+                  "parameters": [
+                    {
+                      "groupId": "algorithm",
+                      "params": {
+                        "name": { "type": "ENUM_LIST", "values": ["DE", "PSO"] }
+                      }
+                    },
+                    {
+                      "groupId": "run",
+                      "params": {
+                        "iterations": { "type": "INT_RANGE", "min": 100, "max": 200, "step": 100 },
+                        "agents":     { "type": "CONSTANT",  "value": 10 },
+                        "dimension":  { "type": "CONSTANT",  "value": 2  }
+                      }
+                    }
+                  ]
                 }
                 """;
 
         CreateJobRequest req = mapper.readValue(json, CreateJobRequest.class);
-
-        // 2 algorithms * 3 iterations * 3 agents * 2 dimensions = 36 tasks
-        assertEquals(36, req.totalTasks());
+        // 2 algs × 2 iter values × 1 × 1 = 4
+        assertEquals(4, req.totalTasks());
     }
 
     @Test
-    void validateMissingJarPath() {
-        CreateJobRequest req = new CreateJobRequest(
-                null, "Main", List.of("sphere"),
-                new CreateJobRequest.RangeParam(1, 1, 1),
-                new CreateJobRequest.RangeParam(1, 1, 1),
-                new CreateJobRequest.RangeParam(1, 1, 1));
+    void payloadsContainArtifactAndParams() throws Exception {
+        String json = """
+                {
+                  "artifactBucket":   "my-bucket",
+                  "artifactKey":      "my.jar",
+                  "artifactEndpoint": "http://s3:9000",
+                  "mainClass":        "com.Main",
+                  "parameters": [
+                    {
+                      "groupId": "run",
+                      "params": {
+                        "iter": { "type": "CONSTANT", "value": 100 }
+                      }
+                    }
+                  ]
+                }
+                """;
 
+        CreateJobRequest req = mapper.readValue(json, CreateJobRequest.class);
+        List<String> payloads = req.payloads();
+        assertEquals(1, payloads.size());
+
+        var node = mapper.readTree(payloads.get(0));
+        assertEquals("my-bucket", node.get("artifactBucket").asText());
+        assertEquals("my.jar",    node.get("artifactKey").asText());
+        assertEquals("com.Main",  node.get("mainClass").asText());
+        assertEquals(100, node.path("params").path("run.iter").asInt());
+    }
+
+    @Test
+    void validateMissingArtifactBucket() {
+        CreateJobRequest req = new CreateJobRequest(
+                null, "key.jar", "http://s3", "Main",
+                List.of(new CreateJobRequest.ParameterGroupRequest("g", Map.of(
+                        "x", new ParameterValue("CONSTANT", null, null, null, 1, null)))));
         assertThrows(IllegalArgumentException.class, req::validate);
     }
 
     @Test
-    void validateEmptyAlgorithms() {
+    void validateMissingMainClass() {
         CreateJobRequest req = new CreateJobRequest(
-                "s3://jar", "Main", List.of(),
-                new CreateJobRequest.RangeParam(1, 1, 1),
-                new CreateJobRequest.RangeParam(1, 1, 1),
-                new CreateJobRequest.RangeParam(1, 1, 1));
+                "bucket", "key.jar", "http://s3", null,
+                List.of(new CreateJobRequest.ParameterGroupRequest("g", Map.of(
+                        "x", new ParameterValue("CONSTANT", null, null, null, 1, null)))));
+        assertThrows(IllegalArgumentException.class, req::validate);
+    }
 
+    @Test
+    void validateEmptyParameters() {
+        CreateJobRequest req = new CreateJobRequest(
+                "bucket", "key.jar", "http://s3", "Main", List.of());
         assertThrows(IllegalArgumentException.class, req::validate);
     }
 }

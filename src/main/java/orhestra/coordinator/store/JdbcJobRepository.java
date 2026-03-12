@@ -1,5 +1,6 @@
 package orhestra.coordinator.store;
 
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.Job;
 import orhestra.coordinator.model.JobStatus;
 import orhestra.coordinator.repository.JobRepository;
@@ -29,22 +30,26 @@ public class JdbcJobRepository implements JobRepository {
     @Override
     public void save(Job job) {
         String sql = """
-                    INSERT INTO jobs (id, jar_path, main_class, config, status, total_tasks, completed_tasks, failed_tasks, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO jobs (id, artifact_bucket, artifact_key, artifact_endpoint,
+                                      main_class, config, status, total_tasks, completed_tasks,
+                                      failed_tasks, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
                 PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, job.id());
-            ps.setString(2, job.jarPath());
-            ps.setString(3, job.mainClass());
-            ps.setString(4, job.config());
-            ps.setString(5, job.status().name());
-            ps.setInt(6, job.totalTasks());
-            ps.setInt(7, job.completedTasks());
-            ps.setInt(8, job.failedTasks());
-            ps.setTimestamp(9, Timestamp.from(job.createdAt() != null ? job.createdAt() : Instant.now()));
+            ps.setString(2, job.artifact().bucket());
+            ps.setString(3, job.artifact().key());
+            ps.setString(4, job.artifact().endpoint());
+            ps.setString(5, job.mainClass());
+            ps.setString(6, job.config());
+            ps.setString(7, job.status().name());
+            ps.setInt(8, job.totalTasks());
+            ps.setInt(9, job.completedTasks());
+            ps.setInt(10, job.failedTasks());
+            ps.setTimestamp(11, Timestamp.from(job.createdAt() != null ? job.createdAt() : Instant.now()));
 
             ps.executeUpdate();
             conn.commit();
@@ -250,9 +255,14 @@ public class JdbcJobRepository implements JobRepository {
     }
 
     private Job mapRow(ResultSet rs) throws SQLException {
+        ArtifactRef artifact = new ArtifactRef(
+                rs.getString("artifact_bucket"),
+                rs.getString("artifact_key"),
+                rs.getString("artifact_endpoint"));
+
         return Job.builder()
                 .id(rs.getString("id"))
-                .jarPath(rs.getString("jar_path"))
+                .artifact(artifact)
                 .mainClass(rs.getString("main_class"))
                 .config(rs.getString("config"))
                 .status(JobStatus.valueOf(rs.getString("status")))

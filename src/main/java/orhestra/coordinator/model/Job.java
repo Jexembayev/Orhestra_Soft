@@ -9,9 +9,9 @@ import java.util.Objects;
  */
 public final class Job {
     private final String id;
-    private final String jarPath;
+    private final ArtifactRef artifact;
     private final String mainClass;
-    private final String config; // JSON with iterations/agents/dimension ranges
+    private final String config; // JSON with parameter group ranges
     private final JobStatus status;
     private final int totalTasks;
     private final int completedTasks;
@@ -22,7 +22,7 @@ public final class Job {
 
     private Job(Builder builder) {
         this.id = Objects.requireNonNull(builder.id, "id is required");
-        this.jarPath = Objects.requireNonNull(builder.jarPath, "jarPath is required");
+        this.artifact = Objects.requireNonNull(builder.artifact, "artifact is required");
         this.mainClass = Objects.requireNonNull(builder.mainClass, "mainClass is required");
         this.config = Objects.requireNonNull(builder.config, "config is required");
         this.status = Objects.requireNonNull(builder.status, "status is required");
@@ -34,13 +34,12 @@ public final class Job {
         this.finishedAt = builder.finishedAt;
     }
 
-    // Getters
     public String id() {
         return id;
     }
 
-    public String jarPath() {
-        return jarPath;
+    public ArtifactRef artifact() {
+        return artifact;
     }
 
     public String mainClass() {
@@ -79,25 +78,21 @@ public final class Job {
         return finishedAt;
     }
 
-    /** Calculate progress percentage */
     public int progressPercent() {
-        if (totalTasks == 0)
-            return 0;
+        if (totalTasks == 0) return 0;
         return (completedTasks + failedTasks) * 100 / totalTasks;
     }
 
-    /** Check if job is in terminal state */
     public boolean isTerminal() {
         return status == JobStatus.COMPLETED ||
                 status == JobStatus.FAILED ||
                 status == JobStatus.CANCELLED;
     }
 
-    /** Create a builder from this job (for updates) */
     public Builder toBuilder() {
         return new Builder()
                 .id(id)
-                .jarPath(jarPath)
+                .artifact(artifact)
                 .mainClass(mainClass)
                 .config(config)
                 .status(status)
@@ -115,7 +110,7 @@ public final class Job {
 
     public static final class Builder {
         private String id;
-        private String jarPath;
+        private ArtifactRef artifact;
         private String mainClass;
         private String config;
         private JobStatus status = JobStatus.PENDING;
@@ -131,8 +126,8 @@ public final class Job {
             return this;
         }
 
-        public Builder jarPath(String jarPath) {
-            this.jarPath = jarPath;
+        public Builder artifact(ArtifactRef artifact) {
+            this.artifact = artifact;
             return this;
         }
 
@@ -188,10 +183,8 @@ public final class Job {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (!(o instanceof Job job))
-            return false;
+        if (this == o) return true;
+        if (!(o instanceof Job job)) return false;
         return Objects.equals(id, job.id);
     }
 

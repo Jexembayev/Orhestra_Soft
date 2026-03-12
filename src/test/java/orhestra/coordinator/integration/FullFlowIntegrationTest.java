@@ -3,6 +3,7 @@ package orhestra.coordinator.integration;
 import orhestra.coordinator.api.v1.dto.TaskResultResponse;
 import orhestra.coordinator.config.CoordinatorConfig;
 import orhestra.coordinator.config.Dependencies;
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.*;
 import org.junit.jupiter.api.*;
 
@@ -42,18 +43,20 @@ class FullFlowIntegrationTest {
         @Test
         @DisplayName("Full workflow: create job, claim tasks, complete, verify")
         void testFullJobWorkflow() {
-                // 1. Create job with 3 tasks (full payload format with agents + dimension)
+                // 1. Create job with 3 tasks (self-contained payload format)
+                ArtifactRef artifact = new ArtifactRef("test-bucket", "test/algo.jar", "http://localhost:9000");
                 Job job = deps.jobService().createJob(
-                                "/path/to/test.jar",
+                                artifact,
                                 "com.example.Main",
                                 "{\"test\": true}",
                                 List.of(
-                                                "{\"alg\":\"PSO\",\"iterations\":{\"max\":100},\"agents\":10,\"dimension\":2}",
-                                                "{\"alg\":\"GA\",\"iterations\":{\"max\":200},\"agents\":25,\"dimension\":5}",
-                                                "{\"alg\":\"DE\",\"iterations\":{\"max\":150},\"agents\":50,\"dimension\":3}"));
+                                                "{\"artifactBucket\":\"test-bucket\",\"artifactKey\":\"test/algo.jar\",\"artifactEndpoint\":\"http://localhost:9000\",\"mainClass\":\"com.example.Main\",\"params\":{\"algorithm.name\":\"PSO\",\"run.iterations\":100}}",
+                                                "{\"artifactBucket\":\"test-bucket\",\"artifactKey\":\"test/algo.jar\",\"artifactEndpoint\":\"http://localhost:9000\",\"mainClass\":\"com.example.Main\",\"params\":{\"algorithm.name\":\"GA\",\"run.iterations\":200}}",
+                                                "{\"artifactBucket\":\"test-bucket\",\"artifactKey\":\"test/algo.jar\",\"artifactEndpoint\":\"http://localhost:9000\",\"mainClass\":\"com.example.Main\",\"params\":{\"algorithm.name\":\"DE\",\"run.iterations\":150}}"));
 
                 assertNotNull(job);
-                assertEquals("/path/to/test.jar", job.jarPath());
+                assertEquals("test-bucket", job.artifact().bucket());
+                assertEquals("test/algo.jar", job.artifact().key());
                 assertEquals(3, job.totalTasks());
                 assertEquals(JobStatus.PENDING, job.status());
 
@@ -121,21 +124,15 @@ class FullFlowIntegrationTest {
                         assertNotNull(t.result());
                 }
 
-                // 12b. Verify first-class input parameter fields persisted through DB
+                // 12b. Verify payload contains artifact reference
                 for (Task t : allTasks) {
-                        assertNotNull(t.algorithm(), "Task.algorithm() should be set from payload at creation");
-                        assertNotNull(t.inputIterations(), "Task.inputIterations() should be set");
-                        assertNotNull(t.inputAgents(), "Task.inputAgents() should be set");
-                        assertNotNull(t.inputDimension(), "Task.inputDimension() should be set");
+                        assertNotNull(t.payload(), "Task.payload() should be set");
+                        assertTrue(t.payload().contains("artifactBucket"), "Payload should include artifactBucket");
                 }
 
-                // 13. Verify TaskResultResponse DTO populates payload fields
+                // 13. Verify TaskResultResponse DTO works
                 for (Task t : allTasks) {
                         TaskResultResponse dto = TaskResultResponse.from(t);
-                        assertNotNull(dto.algorithm(), "algorithm should be parsed from payload");
-                        assertNotNull(dto.iterations(), "iterations should be parsed from payload");
-                        assertNotNull(dto.agents(), "agents should be parsed from payload");
-                        assertNotNull(dto.dimension(), "dimension should be parsed from payload");
                         assertNotNull(dto.runtimeMs(), "runtimeMs should be set");
                         assertNotNull(dto.fopt(), "fopt should be set");
                         assertEquals("DONE", dto.status());
@@ -154,10 +151,10 @@ class FullFlowIntegrationTest {
 
                 try {
                         Job job = deps2.jobService().createJob(
-                                        "/path/to/test.jar",
+                                        new ArtifactRef("bucket", "algo.jar", "http://localhost:9000"),
                                         "com.example.Main",
                                         "{}",
-                                        List.of("{\"test\":true}"));
+                                        List.of("{\"artifactBucket\":\"bucket\",\"artifactKey\":\"algo.jar\",\"params\":{\"run.iterations\":100}}"));
 
                         String spotId = deps2.spotService().registerSpot("192.168.1.101");
                         List<Task> claimed = deps2.taskService().claimTasks(spotId, 10);
@@ -187,10 +184,10 @@ class FullFlowIntegrationTest {
         void testWrongSpotCannotComplete() {
                 // Create job
                 Job job = deps.jobService().createJob(
-                                "/path/to/test.jar",
+                                new ArtifactRef("bucket", "algo.jar", "http://localhost:9000"),
                                 "com.example.Main",
                                 "{}",
-                                List.of("{\"test\":true}"));
+                                List.of("{\"artifactBucket\":\"bucket\",\"artifactKey\":\"algo.jar\",\"params\":{}}"));
 
                 // Register two SPOTs
                 String spot1 = deps.spotService().registerSpot("192.168.1.1");

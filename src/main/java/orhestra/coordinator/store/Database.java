@@ -85,17 +85,20 @@ public final class Database implements AutoCloseable {
             // ---------- JOBS ----------
             st.addBatch("""
                         CREATE TABLE IF NOT EXISTS jobs (
-                            id              VARCHAR(64) PRIMARY KEY,
-                            jar_path        VARCHAR(1024) NOT NULL,
-                            main_class      VARCHAR(256) NOT NULL,
-                            config          CLOB NOT NULL,
-                            status          VARCHAR(20) DEFAULT 'PENDING',
-                            total_tasks     INT DEFAULT 0,
-                            completed_tasks INT DEFAULT 0,
-                            failed_tasks    INT DEFAULT 0,
-                            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            started_at      TIMESTAMP,
-                            finished_at     TIMESTAMP
+                            id                VARCHAR(64) PRIMARY KEY,
+                            jar_path          VARCHAR(1024),
+                            artifact_bucket   VARCHAR(256),
+                            artifact_key      VARCHAR(1024),
+                            artifact_endpoint VARCHAR(512),
+                            main_class        VARCHAR(256) NOT NULL,
+                            config            CLOB NOT NULL,
+                            status            VARCHAR(20) DEFAULT 'PENDING',
+                            total_tasks       INT DEFAULT 0,
+                            completed_tasks   INT DEFAULT 0,
+                            failed_tasks      INT DEFAULT 0,
+                            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            started_at        TIMESTAMP,
+                            finished_at       TIMESTAMP
                         );
                     """);
 
@@ -153,11 +156,18 @@ public final class Database implements AutoCloseable {
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_iterations INT;");
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_agents INT;");
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_dimension INT;");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS main_class VARCHAR(256);");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS ram_used_mb BIGINT DEFAULT 0;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS ram_total_mb BIGINT DEFAULT 0;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS max_concurrent INT DEFAULT 0;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS capabilities_json CLOB;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS labels VARCHAR(512);");
+            // S3 artifact columns on jobs
+            st.addBatch("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_bucket   VARCHAR(256);");
+            st.addBatch("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_key      VARCHAR(1024);");
+            st.addBatch("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_endpoint VARCHAR(512);");
+            // jar_path was NOT NULL — make nullable for migration (artifact fields are the source of truth)
+            st.addBatch("ALTER TABLE jobs ALTER COLUMN jar_path DROP NOT NULL;");
 
             // Indexes
             st.addBatch(

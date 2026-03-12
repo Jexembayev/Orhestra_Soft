@@ -28,6 +28,10 @@ public final class CoordinatorConfig {
     // Auth settings (optional)
     private String agentKey = null; // If set, SPOTs must provide X-Orhestra-Key header
 
+    // S3 / MinIO defaults (Coordinator stores & forwards — does not access S3 itself)
+    private String s3Endpoint = "http://localhost:9000";
+    private String s3Bucket   = "orhestra-algorithms";
+
     private CoordinatorConfig() {
     }
 
@@ -57,6 +61,16 @@ public final class CoordinatorConfig {
         String maxAttempts = System.getenv("ORHESTRA_MAX_ATTEMPTS");
         if (maxAttempts != null && !maxAttempts.isBlank()) {
             config.defaultMaxAttempts = Integer.parseInt(maxAttempts);
+        }
+
+        String s3Endpoint = System.getenv("ORHESTRA_S3_ENDPOINT");
+        if (s3Endpoint != null && !s3Endpoint.isBlank()) {
+            config.s3Endpoint = s3Endpoint;
+        }
+
+        String s3Bucket = System.getenv("ORHESTRA_S3_BUCKET");
+        if (s3Bucket != null && !s3Bucket.isBlank()) {
+            config.s3Bucket = s3Bucket;
         }
 
         return config;
@@ -105,6 +119,14 @@ public final class CoordinatorConfig {
 
     public boolean hasAgentKey() {
         return agentKey != null && !agentKey.isBlank();
+    }
+
+    public String s3Endpoint() {
+        return s3Endpoint;
+    }
+
+    public String s3Bucket() {
+        return s3Bucket;
     }
 
     // Fluent setters for testing/customization

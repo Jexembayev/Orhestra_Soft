@@ -28,7 +28,19 @@ public class VMCreator {
                 for (int i = 0; i < cfg.vmCount; i++) {
                         String name = cfg.vmName + "-" + UUID.randomUUID();
 
-                        String cloudInit = """
+                        // Build /etc/default/spot-agent env file
+                StringBuilder envFile = new StringBuilder();
+                envFile.append("COORDINATOR_URL=").append(coordinatorUrl).append("\n");
+                if (cfg.s3Endpoint != null && !cfg.s3Endpoint.isBlank()) {
+                    envFile.append("S3_ENDPOINT=").append(cfg.s3Endpoint).append("\n");
+                }
+                if (cfg.s3AccessKeyId != null && !cfg.s3AccessKeyId.isBlank()) {
+                    envFile.append("S3_ACCESS_KEY_ID=").append(cfg.s3AccessKeyId).append("\n");
+                    envFile.append("S3_SECRET_ACCESS_KEY=").append(
+                            cfg.s3SecretAccessKey != null ? cfg.s3SecretAccessKey : "").append("\n");
+                }
+
+                String cloudInit = """
                                         #cloud-config
                                         datasource:
                                           Ec2:
@@ -42,11 +54,12 @@ public class VMCreator {
                                             ssh_authorized_keys:
                                               - %s
 
+                                        write_files:
+                                          - path: /etc/default/spot-agent
+                                            permissions: '0600'
+                                            content: |
+                                        %s
                                         runcmd:
-                                          # записываем адрес координатора (определяется автоматически из VPN)
-                                          - 'echo "COORDINATOR_URL=%s" > /etc/default/spot-agent'
-
-                                          # создаём systemd unit для запуска агента
                                           - |
                                             cat >/etc/systemd/system/spot-agent.service <<'EOF'
                                             [Unit]
@@ -58,7 +71,7 @@ public class VMCreator {
                                             User=spot
                                             EnvironmentFile=/etc/default/spot-agent
                                             WorkingDirectory=/home/spot
-                                            ExecStart=/usr/bin/java -jar /home/spot/NettyVMServer-1.0-SNAPSHOT-jar-with-dependencies.jar ${COORDINATOR_URL}
+                                            ExecStart=/usr/bin/java -jar /home/spot/spot-agent-jar-with-dependencies.jar
                                             Restart=always
                                             RestartSec=5
 
@@ -69,7 +82,10 @@ public class VMCreator {
                                           - systemctl daemon-reload
                                           - systemctl enable --now spot-agent
                                         """
-                                        .formatted(cfg.userName, cfg.sshKey, coordinatorUrl);
+                                        .formatted(
+                                            cfg.userName,
+                                            cfg.sshKey,
+                                            envFile.toString().indent(8).stripTrailing());
 
                         InstanceServiceOuterClass.CreateInstanceRequest req = buildCreateInstanceRequest(
                                         cfg.folderId, cfg.zoneId, cfg.platformId,

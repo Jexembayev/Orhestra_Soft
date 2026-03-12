@@ -14,31 +14,38 @@ import java.util.List;
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record JobResponse(
-        @JsonProperty("jobId") String jobId,
-        @JsonProperty("status") String status,
-        @JsonProperty("totalTasks") int totalTasks,
-        @JsonProperty("completedTasks") int completedTasks,
-        @JsonProperty("failedTasks") int failedTasks,
-        @JsonProperty("createdAt") Instant createdAt,
-        @JsonProperty("startedAt") Instant startedAt,
-        @JsonProperty("finishedAt") Instant finishedAt,
-        @JsonProperty("results") List<TaskResultResponse> results) {
-    /** Create response from domain model */
+        @JsonProperty("jobId")            String jobId,
+        @JsonProperty("status")           String status,
+        @JsonProperty("artifactBucket")   String artifactBucket,
+        @JsonProperty("artifactKey")      String artifactKey,
+        @JsonProperty("artifactEndpoint") String artifactEndpoint,
+        @JsonProperty("mainClass")        String mainClass,
+        @JsonProperty("totalTasks")       int totalTasks,
+        @JsonProperty("completedTasks")   int completedTasks,
+        @JsonProperty("failedTasks")      int failedTasks,
+        @JsonProperty("createdAt")        Instant createdAt,
+        @JsonProperty("startedAt")        Instant startedAt,
+        @JsonProperty("finishedAt")       Instant finishedAt,
+        @JsonProperty("results")          List<TaskResultResponse> results) {
+
     public static JobResponse from(Job job) {
         return new JobResponse(
                 job.id(),
                 job.status().name(),
+                job.artifact().bucket(),
+                job.artifact().key(),
+                job.artifact().endpoint(),
+                job.mainClass(),
                 job.totalTasks(),
                 job.completedTasks(),
                 job.failedTasks(),
                 job.createdAt(),
                 job.startedAt(),
                 job.finishedAt(),
-                null // results populated separately when needed
+                null
         );
     }
 
-    /** Create response with results */
     public static JobResponse from(Job job, List<Task> tasks) {
         List<TaskResultResponse> results = tasks.stream()
                 .map(TaskResultResponse::from)
@@ -47,6 +54,10 @@ public record JobResponse(
         return new JobResponse(
                 job.id(),
                 job.status().name(),
+                job.artifact().bucket(),
+                job.artifact().key(),
+                job.artifact().endpoint(),
+                job.mainClass(),
                 job.totalTasks(),
                 job.completedTasks(),
                 job.failedTasks(),
@@ -56,10 +67,10 @@ public record JobResponse(
                 results);
     }
 
-    /** Compact version for list responses */
     public JobResponse compact() {
         return new JobResponse(
-                jobId, status, totalTasks, completedTasks, failedTasks,
+                jobId, status, artifactBucket, artifactKey, artifactEndpoint, mainClass,
+                totalTasks, completedTasks, failedTasks,
                 createdAt, startedAt, finishedAt, null);
     }
 }

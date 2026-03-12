@@ -70,6 +70,15 @@ public class IniLoader {
                 if (tag != null && !tag.isBlank()) cfg.ovpnTag = tag.trim();
             }
 
+            // S3 / Object Storage (опционально)
+            Profile.Section s3 = ini.get("S3");
+            if (s3 != null) {
+                cfg.s3Endpoint        = opt(s3, "endpoint");
+                cfg.s3Bucket          = opt(s3, "bucket");
+                cfg.s3AccessKeyId     = opt(s3, "access_key_id");
+                cfg.s3SecretAccessKey = opt(s3, "secret_access_key");
+            }
+
             return Optional.of(cfg);
         } catch (IOException | RuntimeException ex) {
             ex.printStackTrace();
@@ -116,7 +125,16 @@ public class IniLoader {
                     ssh.fetch("user"),
                     Boolean.parseBoolean(opt(vm, "preemptible", "true"))
             );
-            cfg.sshKey = keyText.trim();          // <<< добавили
+            cfg.sshKey = keyText.trim();
+
+            // S3 / Object Storage (опционально)
+            Profile.Section s3 = ini.get("S3");
+            if (s3 != null) {
+                cfg.s3Endpoint        = opt(s3, "endpoint");
+                cfg.s3AccessKeyId     = opt(s3, "access_key_id");
+                cfg.s3SecretAccessKey = opt(s3, "secret_access_key");
+            }
+
             return Optional.of(cfg);
         } catch (IOException | RuntimeException ex) {
             ex.printStackTrace();
@@ -144,7 +162,7 @@ public class IniLoader {
         public final String vmName;
         public final String imageId;
         public final String platformId;
-        public String sshKey; // если решишь передавать ключ строкой
+        public String sshKey;
         public final int cpu;
         public final int ramGb;
         public final int diskGb;
@@ -153,6 +171,11 @@ public class IniLoader {
         public final boolean assignPublicIp;
         public final String userName;
         public final boolean preemptible;
+
+        // S3 — опционально, прокидывается в cloud-init
+        public String s3Endpoint;
+        public String s3AccessKeyId;
+        public String s3SecretAccessKey;
 
         public VmConfig(String folderId, String zoneId, int vmCount,
                         String vmName, String imageId, String platformId,

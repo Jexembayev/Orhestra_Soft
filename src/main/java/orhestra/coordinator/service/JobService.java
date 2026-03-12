@@ -1,6 +1,7 @@
 package orhestra.coordinator.service;
 
 import orhestra.coordinator.config.CoordinatorConfig;
+import orhestra.coordinator.model.ArtifactRef;
 import orhestra.coordinator.model.*;
 import orhestra.coordinator.repository.JobRepository;
 import orhestra.coordinator.repository.TaskRepository;
@@ -34,18 +35,18 @@ public class JobService {
     /**
      * Create a new job and generate its tasks.
      *
-     * @param jarPath   path to the JAR file
+     * @param artifact  S3 artifact reference (bucket + key + endpoint)
      * @param mainClass main class name
      * @param config    job configuration JSON
-     * @param payloads  list of task payloads
+     * @param payloads  list of flat JSON task payloads (one per combination)
      * @return created job
      */
-    public Job createJob(String jarPath, String mainClass, String config, List<String> payloads) {
+    public Job createJob(ArtifactRef artifact, String mainClass, String config, List<String> payloads) {
         String jobId = jobRepository.generateId();
 
         Job job = Job.builder()
                 .id(jobId)
-                .jarPath(jarPath)
+                .artifact(artifact)
                 .mainClass(mainClass)
                 .config(config)
                 .status(JobStatus.PENDING)
@@ -58,51 +59,21 @@ public class JobService {
         jobRepository.save(job);
         log.info("Created job {} with {} tasks", jobId, payloads.size());
 
-        // Create tasks for this job
+        // Create tasks — payload JSON is self-contained (artifact + params)
         List<Task> tasks = new ArrayList<>();
-        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         for (int i = 0; i < payloads.size(); i++) {
-            String taskId = UUID.randomUUID().toString();
-            String payloadStr = payloads.get(i);
-
-            // Extract input parameters from payload
-            String alg = null;
-            Integer inputIter = null;
-            Integer inputAgents = null;
-            Integer inputDim = null;
-            try {
-                var root = mapper.readTree(payloadStr);
-                if (root.has("alg") && !root.get("alg").isNull())
-                    alg = root.get("alg").asText();
-                var iterNode = root.path("iterations");
-                if (iterNode.isObject() && iterNode.has("max"))
-                    inputIter = iterNode.get("max").asInt();
-                else if (iterNode.isNumber())
-                    inputIter = iterNode.asInt();
-                if (root.has("agents") && root.get("agents").isNumber())
-                    inputAgents = root.get("agents").asInt();
-                if (root.has("dimension") && root.get("dimension").isNumber())
-                    inputDim = root.get("dimension").asInt();
-            } catch (Exception ignored) {
-            }
-
             Task task = Task.builder()
-                    .id(taskId)
+                    .id(UUID.randomUUID().toString())
                     .jobId(jobId)
-                    .payload(payloadStr)
+                    .payload(payloads.get(i))
                     .status(TaskStatus.NEW)
-                    .priority(i) // Earlier tasks have lower priority (process in order)
+                    .priority(i)
                     .maxAttempts(this.config.defaultMaxAttempts())
                     .createdAt(Instant.now())
-                    .algorithm(alg)
-                    .inputIterations(inputIter)
-                    .inputAgents(inputAgents)
-                    .inputDimension(inputDim)
                     .build();
             tasks.add(task);
         }
 
-        // Batch save tasks
         for (Task task : tasks) {
             taskRepository.save(task);
         }

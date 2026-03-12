@@ -1,0 +1,20 @@
+{
+  "groups": [
+    {
+      "id": "algorithm",
+      "label": "Algorithm",
+      "parameters": [
+        { "id": "name", "label": "Name", "type": "ENUM", "options": ["DE", "PSO", "GWO"] }
+      ]
+    },
+    {
+      "id": "run",
+      "label": "Run Config",
+      "parameters": [
+        { "id": "iterations", "label": "Iterations", "type": "INT_RANGE" },
+        { "id": "agents",     "label": "Agents",     "type": "INT_RANGE" },
+        { "id": "dimension",  "label": "Dimension",  "type": "INT_RANGE" }
+      ]
+    }
+  ]
+}
