@@ -69,11 +69,30 @@
                         </HBox>
 
                         <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Label text="VPN (tun):" minWidth="100"/>
+                            <Label fx:id="dotVpn" text="●" style="-fx-text-fill: #999999; -fx-font-size: 16;"/>
+                            <Region HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="btnCheckVpn" text="Проверить" onAction="#handleCheckVpn"/>
+                        </HBox>
+
+                        <HBox spacing="8" alignment="CENTER_LEFT">
                             <Label text="Координатор:" minWidth="100"/>
                             <Label fx:id="dotCoord" text="●" style="-fx-text-fill: #999999; -fx-font-size: 16;"/>
                             <Region HBox.hgrow="ALWAYS"/>
                             <Button fx:id="btnStartCoordinator" text="Запустить" onAction="#handleStartCoordinator"/>
                             <Button fx:id="btnStopCoordinator"  text="Остановить" onAction="#handleStopCoordinator"/>
+                        </HBox>
+
+                        <Separator/>
+
+                        <!-- Информационные лейблы: VPN IP и адрес координатора -->
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Label text="VPN IP:" minWidth="100" styleClass="muted"/>
+                            <Label fx:id="labelVpnIp" text="—" style="-fx-font-family: monospace; -fx-font-size: 13;"/>
+                        </HBox>
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Label text="Координатор:" minWidth="100" styleClass="muted"/>
+                            <Label fx:id="labelCoordUrl" text="—" style="-fx-font-family: monospace; -fx-font-size: 13;"/>
                         </HBox>
                     </VBox>
                 </content>

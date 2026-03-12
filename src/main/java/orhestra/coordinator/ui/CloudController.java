@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 public class CloudController {
 
@@ -54,6 +55,11 @@ public class CloudController {
     private TextArea coordLogArea;
 
     @FXML
+    private Label labelVpnIp; // отображает текущий IP VPN (tun-интерфейса)
+    @FXML
+    private Label labelCoordUrl; // отображает URL координатора
+
+    @FXML
     private TableView<CloudInstanceRow> instancesTable;
     @FXML
     private TableColumn<CloudInstanceRow, String> colId;
@@ -76,6 +82,12 @@ public class CloudController {
 
     private AuthService auth; // лениво: токен из ENV OAUTH_TOKEN
     private CloudConfig cfg; // то, что считали из INI
+
+    /**
+     * IP координатора в VPN-сети, определяется автоматически при старте
+     * координатора.
+     */
+    private String coordinatorVpnIp = null;
 
     // services
     private final VpnProbe vpnProbe = new VpnProbe();
@@ -197,6 +209,9 @@ public class CloudController {
 
             setStatus("✅ INI загружен: " + new File(path).getName());
 
+            // Сбрасываем старый auth — новый INI может быть другой аккаунт
+            auth = null;
+
             // лениво создаём auth и сервисы, зависящие от него
             ensureAuth();
             this.cloudProbe = new CloudProbe(auth);
@@ -243,9 +258,17 @@ public class CloudController {
 
     @FXML
     private void handleCheckVpn() {
-        boolean ok = vpnProbe.isVpnUp();
-        env.setVpn(ok);
-        setStatus(ok ? "✅ VPN OK" : "⚠️ VPN не обнаружен");
+        Optional<String> ip = vpnProbe.getVpnIp();
+        env.setVpn(ip.isPresent());
+        if (ip.isPresent()) {
+            if (labelVpnIp != null)
+                labelVpnIp.setText(ip.get());
+            setStatus("✅ VPN OK (tun IP: " + ip.get() + ")");
+        } else {
+            if (labelVpnIp != null)
+                labelVpnIp.setText("—");
+            setStatus("⚠️ VPN не обнаружен (tun-интерфейс не найден)");
+        }
     }
 
     @FXML
@@ -301,15 +324,36 @@ public class CloudController {
 
     @FXML
     private void handleStartCoordinator() {
+        Optional<String> vpnIp = vpnProbe.getVpnIp();
+        if (vpnIp.isEmpty()) {
+            env.setCoord(false);
+            setStatus("❌ VPN не поднят — подключитесь к OpenVPN и повторите");
+            return;
+        }
         boolean ok = coordSvc.start(8081);
-        env.setCoord(ok);
-        setStatus(ok ? "✅ Координатор запущен на 8081" : "❌ Координатор не запустился");
+        if (ok) {
+            coordinatorVpnIp = vpnIp.get();
+            String coordUrl = "http://" + coordinatorVpnIp + ":8081";
+            env.setCoord(true);
+            if (labelVpnIp != null)
+                labelVpnIp.setText(coordinatorVpnIp);
+            if (labelCoordUrl != null)
+                labelCoordUrl.setText(coordUrl);
+            setStatus("✅ Координатор запущен на 8081 (VPN IP: " + coordinatorVpnIp + ")");
+        } else {
+            coordinatorVpnIp = null;
+            env.setCoord(false);
+            setStatus("❌ Координатор не запустился");
+        }
     }
 
     @FXML
     private void handleStopCoordinator() {
         coordSvc.stop();
+        coordinatorVpnIp = null;
         env.setCoord(false);
+        if (labelCoordUrl != null)
+            labelCoordUrl.setText("—");
         setStatus("Координатор остановлен");
     }
 
@@ -335,6 +379,13 @@ public class CloudController {
 
     @FXML
     private void handleCreateSpot() {
+        // Проверяем, что координатор был запущен и VPN-IP известен
+        if (coordinatorVpnIp == null) {
+            setStatus("❌ Сначала запустите координатор (VPN должен быть поднят)");
+            return;
+        }
+        final String coordUrl = "http://" + coordinatorVpnIp + ":8081";
+
         runAsync("Создание SPOT-инстансов…", () -> {
             try {
                 ensureAuth();
@@ -348,9 +399,9 @@ public class CloudController {
                 }
 
                 var creator = new VMCreator(auth);
-                creator.createMany(vmCfgOpt.get()); // внутри ждёт OperationUtils.wait(...)
+                creator.createMany(vmCfgOpt.get(), coordUrl);
 
-                updateStatusAsync("✅ SPOT-инстансы созданы");
+                updateStatusAsync("✅ SPOT-инстансы созданы (координатор: " + coordUrl + ")");
                 javafx.application.Platform.runLater(this::handleListInstances);
             } catch (Exception e) {
                 updateStatusAsync("❌ Ошибка создания: " + e.getMessage());
@@ -388,18 +439,29 @@ public class CloudController {
         if (auth != null)
             return;
 
-        // 1. Try saved token from Preferences
-        String savedToken = recentIni.getOauthToken();
-        if (savedToken != null && !savedToken.isBlank()) {
-            auth = new AuthService(savedToken);
+        // Определяем endpoint по zone (kz1-a → api.yandexcloud.kz, иначе null = дефолт)
+        String endpoint = (cfg != null) ? cfg.resolveEndpoint() : null;
+
+        // Приоритет:
+        // 1. Токен из текущего INI (если не пустой) — наивысший приоритет
+        if (cfg != null && cfg.oauthToken != null && !cfg.oauthToken.isBlank()) {
+            recentIni.setOauthToken(cfg.oauthToken); // обновляем сохранённый
+            auth = new AuthService(cfg.oauthToken, endpoint);
             return;
         }
 
-        // 2. Fall back to ENV: OAUTH_TOKEN
-        String envToken = System.getenv("OAUTH_TOKEN");
-        auth = new AuthService(envToken);
+        // 2. Сохранённый токен из Preferences (от предыдущей сессии)
+        String savedToken = recentIni.getOauthToken();
+        if (savedToken != null && !savedToken.isBlank()) {
+            auth = new AuthService(savedToken, endpoint);
+            return;
+        }
 
-        // Save ENV token to Preferences for future restarts
+        // 3. ENV: OAUTH_TOKEN
+        String envToken = System.getenv("OAUTH_TOKEN");
+        auth = new AuthService(envToken, endpoint);
+
+        // Сохранить ENV-токен в Preferences для будущих запусков
         if (envToken != null && !envToken.isBlank()) {
             recentIni.setOauthToken(envToken);
         }
